@@ -1,5 +1,5 @@
 ; CPU implementation description.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2003 Red Hat, Inc.
 ; This file is part of CGEN.
 ; See file COPYING.CGEN for details.
 
@@ -66,13 +66,6 @@
     (elm-xset! result 'done done)
     result)
 )
-
-(define (unit:enum u)
-  (gen-c-symbol (string-append "UNIT_"
-			       (string-upcase (obj:name (unit:model u)))
-			       "_"
-			       (string-upcase (obj:name u))))
-)
 
 ; The `<model>' class.
 ;
@@ -103,7 +96,14 @@
 (define model:units (elm-make-getter <model> 'units))
 
 (define (model:enum m)
-  (gen-c-symbol (string-append "MODEL_" (string-upcase (obj:name m))))
+  (gen-c-symbol (string-append "MODEL_" (string-upcase (obj:str-name m))))
+)
+
+(define (models-for-mach mach)
+  (let ((mach-name (obj:name mach)))
+    (find (lambda (model)
+	    (eq? (obj:name (model:mach model)) mach-name))
+	  (current-model-list)))
 )
 
 ; Parse a `prefetch' spec.
@@ -147,7 +147,7 @@
   (logit 2 "Processing model " name " ...\n")
   (let ((name (parse-name name errtxt))
 	; FIXME: switch to `context' like in cver.
-	(errtxt (string-append errtxt " " name))
+	(errtxt (stringsym-append errtxt " " name))
 	(mach (current-mach-lookup mach-name)))
     (if (null? units)
 	(parse-error errtxt "there must be at least one function unit" name))
@@ -272,6 +272,7 @@
 ; are returned as (model1), i.e. an empty unit list.
 
 (define (parse-insn-timing context insn-timing-desc)
+  (logit 2 "parse-insn-timing: context==" context ", desc==" insn-timing-desc "\n")
   (map (lambda (model-timing-desc)
 	 (let* ((model-name (car model-timing-desc))
 		(model (current-model-lookup model-name)))
@@ -279,7 +280,7 @@
 		 (if model
 		     (-insn-timing-parse-model context model
 					       (cdr model-timing-desc))
-		     ()))))
+		     '()))))
        insn-timing-desc)
 )
 

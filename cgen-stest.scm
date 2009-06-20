@@ -8,9 +8,6 @@
 
 ; Load the various support routines
 (define (load-files srcdir)
-  ; Fix up Scheme to be what we use (guile is always in flux).
-  (primitive-load-path (string-append srcdir "/fixup.scm"))
-
   (load (string-append srcdir "/read.scm"))
   (load (string-append srcdir "/desc.scm"))
   (load (string-append srcdir "/desc-cpu.scm"))
@@ -24,9 +21,11 @@
 
 (define stest-arguments
   (list
-   (list '-B "file" "generate build.sh"
+   (list "-B" "file" "generate build.sh"
+	 #f
 	 (lambda (arg) (file-write arg cgen-build.sh)))
-   (list '-E "file" "generate the testsuite .exp"
+   (list "-E" "file" "generate the testsuite .exp"
+	 #f
 	 (lambda (arg) (file-write arg cgen-allinsn.exp)))
    )
 )

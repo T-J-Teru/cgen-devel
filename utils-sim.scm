@@ -1,5 +1,5 @@
 ; Generic simulator application utilities.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2005, 2006 Red Hat, Inc.
 ; This file is part of CGEN.
 ; See file COPYING.CGEN for details.
 
@@ -56,11 +56,17 @@
 
 (define (op-needed-iflds op sfmt)
   (let ((indx (op:index op)))
-    (if (and (eq? (hw-index:type indx) 'ifield)
-	     (not (= (ifld-length (hw-index:value indx)) 0)))
-	(hw-needed-iflds (op:type op) op sfmt)
-	nil))
-)
+    (logit 4 "op-needed-iflds op=" (obj:name op) " indx=" (obj:name indx)
+	   " indx-type=" (hw-index:type indx) " sfmt=" (obj:name sfmt) "\n")
+    (cond
+     ((and 
+       (eq? (hw-index:type indx) 'ifield)
+       (not (= (ifld-length (hw-index:value indx)) 0)))
+      (hw-needed-iflds (op:type op) op sfmt))
+     ((eq? (hw-index:type indx) 'derived-ifield)
+      (ifld-needed-iflds indx))
+     (else nil)))
+  )
 
 ; Operand extraction (ARGBUF) support code.
 ;
@@ -209,8 +215,8 @@
 	(in-ops (sfmt-in-ops sfmt))
 	(out-ops (sfmt-out-ops sfmt))
 	(sort-elms (lambda (a b)
-		     ; Sort by descending size, then ascending C type, then
-		     ; ascending name.
+		     ; Sort by descending size, then ascending C type name,
+		     ; then ascending name.
 		     (cond ((> (caddr a) (caddr b))
 			    #t)
 			   ((= (caddr a) (caddr b))
@@ -223,6 +229,13 @@
 			   (else
 			    #f))))
 	)
+    (logit 4 
+	   "-sfmt-contents sfmt=" (obj:name sfmt) 
+	   " needed-iflds=" (string-map obj:str-name needed-iflds)
+	   " extracted-ops=" (string-map obj:str-name extracted-ops)
+	   " in-ops=" (string-map obj:str-name in-ops)
+	   " out-ops=" (string-map obj:str-name out-ops)
+	   "\n")
     (cons sfmt
 	  (sort
 	   ; Compute list of all things we need to record at extraction time.
@@ -386,6 +399,23 @@
        (list "unsigned short" 16)))
 )
 
+; Utility to return name of variable/structure-member to use to record
+; profiling data for SYM.
+
+(define (gen-profile-sym sym out?)
+  (string-append (if out? "out_" "in_")
+		 (if (symbol? sym) (symbol->string sym) sym))
+)
+
+; Return name of variable/structure-member to use to record data needed for
+; profiling operand SELF.
+
+(method-make!
+ <operand> 'sbuf-profile-sym
+ (lambda (self out?)
+   (gen-profile-sym (gen-sym self) out?))
+)
+
 ; sbuf-profile-elm method.
 ; Return the ARGBUF member needed for profiling SELF in <sformat> SFMT.
 ; The result is (var-name "C-type" approx-bitsize) or #f if unneeded.
@@ -395,8 +425,7 @@
  (lambda (self sfmt out?)
    (if (hw-scalar? (op:type self))
        #f
-       (cons (string-append (if out? "out_" "in_")
-			    (gen-sym self))
+       (cons (send self 'sbuf-profile-sym out?)
 	     (send (op:type self) 'sbuf-profile-data))))
 )
 
@@ -418,11 +447,18 @@
 ; Name of macro to access fields in ARGBUF.
 (define c-argbuf-macro "FLD")
 
+; NB: If sfmt is #f, then define the macro to pass through the argument
+; symbol.  This is appropriate for "simple" (non-scache) simulators
+; that have no abuf/scache in the sem.c routines, but rather plain
+; local variables.
 (define (gen-define-argbuf-macro sfmt)
   (string-append "#define " c-argbuf-macro "(f) "
-		 "abuf->fields."
-		 (gen-sym (sfmt-sbuf sfmt))
-		 ".f\n")
+		 (if sfmt
+		     (string-append
+		      "abuf->fields."
+		      (gen-sym (sfmt-sbuf sfmt))
+		      ".f\n")
+		     "f\n"))
 )
 
 (define (gen-undef-argbuf-macro sfmt)
@@ -514,7 +550,11 @@
 			 pos (+ 1 count)
 			 (cdr bitnums)))))))
     (string-append
-     "("
+     ; While we could just always emit "(0" to handle the case of an empty set,
+     ; keeping the code more readable for the normal case is important.
+     (if (< (length groups) 1)
+	 "(0"
+	 "(")
      (string-drop 3
 		  (string-map
 		   (lambda (group)
@@ -539,14 +579,30 @@
 
 ; Convert decoder table into C code.
 
+; Return code for the default entry of each switch table
+;
+(define (-gen-decode-default-entry indent invalid-insn fn?)
+  (string-append
+   "itype = "
+   (gen-cpu-insn-enum (current-cpu) invalid-insn)
+   ";"
+   (if (with-scache?)
+       (if fn?
+	   " @prefix@_extract_sfmt_empty (this, current_cpu, pc, base_insn, entire_insn); goto done;\n"
+	   " goto extract_sfmt_empty;\n")
+       " goto done;\n")
+  )
+)
+
 ; Return code for one insn entry.
 ; REST is the remaining entries.
 
-(define (-gen-decode-insn-entry entry rest indent)
+(define (-gen-decode-insn-entry entry rest indent invalid-insn fn?)
   (assert (eq? 'insn (dtable-entry-type entry)))
   (logit 3 "Generating decode insn entry for " (obj:name (dtable-entry-value entry)) " ...\n")
 
-  (let ((insn (dtable-entry-value entry)))
+  (let* ((insn (dtable-entry-value entry))
+	 (fmt-name (gen-sym (insn-sfmt insn))))
 
     (cond
 
@@ -568,16 +624,29 @@
 
      (else
       (string-append indent "  case "
-		     (number->string (dtable-entry-index entry))
-		     " : itype = "
-		     (gen-cpu-insn-enum (current-cpu) insn)
-		     "; "
+		     (number->string (dtable-entry-index entry)) " :\n"
+		     ; Compensate for base-insn-size > current-insn-size by adjusting entire_insn.
+		     ; Activate this logic only for sid simulators; they are consistent in
+		     ; interpreting base-insn-bitsize this way.
+		     (if (and (equal? APPLICATION 'SID-SIMULATOR)
+			      (> (state-base-insn-bitsize) (insn-length insn)))
+			 (string-append
+			  indent "    entire_insn = entire_insn >> "
+			  (number->string (- (state-base-insn-bitsize) (insn-length insn)))
+			  ";\n")
+			 "")
+		     ; Generate code to check that all of the opcode bits for this insn match
+		     indent "    if (("
+		     (if (adata-integral-insn? CURRENT-ARCH) "entire_insn" "base_insn")
+		     " & 0x" (number->hex (insn-base-mask insn)) ") == 0x" (number->hex (insn-value insn)) ")\n" 
+		     indent "      { itype = " (gen-cpu-insn-enum (current-cpu) insn) ";"
 		     (if (with-scache?)
-			 (string-append "goto "
-					"extract_"
-					(gen-sym (insn-sfmt insn))
-					";\n")
-			 "goto done;\n")))))
+			 (if fn?
+			     (string-append " @prefix@_extract_" fmt-name " (this, current_cpu, pc, base_insn, entire_insn); goto done;")
+			     (string-append " goto extract_" fmt-name ";"))
+			 " goto done;")
+		     " }\n"
+		     indent "    " (-gen-decode-default-entry indent invalid-insn fn?)))))
 )
 
 ; Subroutine of -decode-expr-ifield-tracking.
@@ -589,7 +658,7 @@
 	 (bits (ifld-length ifld)))
     (if (mode-unsigned? (ifld-mode ifld))
 	(iota (logsll 1 bits))
-	(iota (- (logsll 1 (- bits 1))) (logsll 1 bits))))
+	(iota (logsll 1 bits) (- (logsll 1 (- bits 1))))))
 )
 
 ; Subroutine of -decode-expr-ifield-tracking,-decode-expr-ifield-mark-used.
@@ -668,17 +737,16 @@
 ; Subroutine of -gen-decode-expr-entry.
 ; Return code to set `itype' and branch to the extraction phase.
 
-(define (-gen-decode-expr-set-itype indent insn-enum fmt-name)
+(define (-gen-decode-expr-set-itype indent insn-enum fmt-name fn?)
   (string-append
    indent
    "{ itype = "
    insn-enum
    "; "
    (if (with-scache?)
-       (string-append "goto "
-		      "extract_"
-		      fmt-name
-		      ";")
+       (if fn?
+	   (string-append "@prefix@_extract_" fmt-name " (this, current_cpu, pc, base_insn, entire_insn);  goto done;")
+	   (string-append "goto extract_" fmt-name ";"))
        "goto done;")
    " }\n"
    )
@@ -687,7 +755,7 @@
 ; Generate code to decode the expression table in ENTRY.
 ; INVALID-INSN is the <insn> object of the pseudo insn to handle invalid ones.
 
-(define (-gen-decode-expr-entry entry indent invalid-insn)
+(define (-gen-decode-expr-entry entry indent invalid-insn fn?)
   (assert (eq? 'expr (dtable-entry-type entry)))
   (logit 3 "Generating decode expr entry for " (exprtable-name (dtable-entry-value entry)) " ...\n")
 
@@ -714,7 +782,8 @@
 			   (-gen-decode-expr-set-itype
 			    indent
 			    (gen-cpu-insn-enum (current-cpu) invalid-insn)
-			    "sfmt_empty"))))
+			    "sfmt_empty"
+			    fn?))))
 
 	     ; Not all done, process next expr.
 
@@ -739,7 +808,8 @@
 			   (-gen-decode-expr-set-itype
 			    indent
 			    (gen-cpu-insn-enum (current-cpu) insn)
-			    (gen-sym (insn-sfmt insn))))
+			    (gen-sym (insn-sfmt insn))
+			    fn?))
 
 			  ; We don't use up all ifield values, so emit a test.
 			   (let ((iflds (map current-ifld-lookup ifld-names)))
@@ -759,7 +829,8 @@
 			      (-gen-decode-expr-set-itype
 			       (string-append indent "    ")
 			       (gen-cpu-insn-enum (current-cpu) insn)
-			       (gen-sym (insn-sfmt insn)))
+			       (gen-sym (insn-sfmt insn))
+			       fn?)
 			      indent "}\n")))))
 
 		 (loop (cdr expr-list)
@@ -772,7 +843,7 @@
 ; SWITCH-NUM, STARTBIT, DECODE-BITSIZE, INDENT, LSB0?, INVALID-INSN are same
 ; as for -gen-decoder-switch.
 
-(define (-gen-decode-table-entry table rest switch-num startbit decode-bitsize indent lsb0? invalid-insn)
+(define (-gen-decode-table-entry table rest switch-num startbit decode-bitsize indent lsb0? invalid-insn fn?)
   (assert (eq? 'table (dtable-entry-type table)))
   (logit 3 "Generating decode table entry for case " (dtable-entry-index table) " ...\n")
 
@@ -797,7 +868,8 @@
 			     (subdtable-table (dtable-entry-value table))
 			     (string-append indent "    ")
 			     lsb0?
-			     invalid-insn))))
+			     invalid-insn
+			     fn?))))
 )
 
 ; Subroutine of -decode-sort-entries.
@@ -866,7 +938,14 @@
 ; LSB0? is non-#f if bit number 0 is the least significant bit.
 ; INVALID-INSN is the <insn> object of the pseudo insn to handle invalid ones.
 
-(define (-gen-decoder-switch switch-num startbit decode-bitsize table-guts indent lsb0? invalid-insn)
+; FIXME: for the few-alternative case (say, 2), generating
+; if (0) {}
+; else if (val == 0) { ... }
+; else if (val == 1) { ... }
+; else {}
+; may well be less stressful on the compiler to optimize than small switch() stmts.
+
+(define (-gen-decoder-switch switch-num startbit decode-bitsize table-guts indent lsb0? invalid-insn fn?)
   ; For entries that are a single insn, we're done, otherwise recurse.
 
   (string-list
@@ -905,23 +984,19 @@
 	  (cdr entries)
 	  (cons (case (dtable-entry-type (car entries))
 		  ((insn)
-		   (-gen-decode-insn-entry (car entries) (cdr entries) indent))
+		   (-gen-decode-insn-entry (car entries) (cdr entries) indent invalid-insn fn?))
 		  ((expr)
-		   (-gen-decode-expr-entry (car entries) indent invalid-insn))
+		   (-gen-decode-expr-entry (car entries) indent invalid-insn fn?))
 		  ((table)
 		   (-gen-decode-table-entry (car entries) (cdr entries)
 					    switch-num startbit decode-bitsize
-					    indent lsb0? invalid-insn))
+					    indent lsb0? invalid-insn fn?))
 		  )
 		result))))
 
    ; ??? Can delete if all cases are present.
-   indent "  default : itype = "
-   (gen-cpu-insn-enum (current-cpu) invalid-insn)
-   ";"
-   (if (with-scache?)
-       " goto extract_sfmt_empty;\n"
-       " goto done;\n")
+   indent "  default : "
+   (-gen-decode-default-entry indent invalid-insn fn?)
    indent "  }\n"
    indent "}\n"
    )
@@ -933,12 +1008,14 @@
 ; DECODE-BITSIZE is the number of bits of the instruction that `insn' holds.
 ; LSB0? is non-#f if bit number 0 is the least significant bit.
 ; INVALID-INSN is the <insn> object of the pseudo insn to handle invalid ones.
+; FN? is non-#f if the extractors are functions rather than inline code
 
-(define (gen-decoder insn-list bitnums decode-bitsize indent lsb0? invalid-insn)
+(define (gen-decoder insn-list bitnums decode-bitsize indent lsb0? invalid-insn fn?)
   (logit 3 "Building decode tree.\n"
 	 "bitnums = " (stringize bitnums " ") "\n"
 	 "decode-bitsize = " (number->string decode-bitsize) "\n"
 	 "lsb0? = " (if lsb0? "#t" "#f") "\n"
+	 "fn? = " (if fn? "#t" "#f") "\n"
 	 )
 
   ; First build a table that decodes the instruction set.
@@ -950,6 +1027,6 @@
     ; Now print it out.
 
     (-gen-decoder-switch "0" 0 decode-bitsize table-guts indent lsb0?
-			 invalid-insn)
+			 invalid-insn fn?)
     )
 )

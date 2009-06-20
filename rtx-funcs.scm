@@ -317,7 +317,7 @@
 (drmn (annul yes?)
       ; The pc reference here is hidden in c-code to not generate a spurious
       ; pc input operand.
-      (list 'c-call 'VOID "SEM_ANNUL_INSN" (list 'c-code 'AI "pc") yes?)
+      (list 'c-call 'VOID "SEM_ANNUL_INSN" (list 'c-code 'IAI "pc") yes?)
 )
 
 ; Skip the following insn if YES? is non-zero.
@@ -426,14 +426,19 @@
 
 ; GCC's subreg.
 ; Called subword 'cus it's not exactly subreg.
-; Word numbering is from most signficant (word 0) to least (word N-1).
+; Word numbering is from most significant (word 0) to least (word N-1).
 ; ??? May also want an endian dependent word ordering.  That can be
 ; implemented on top of or beside this.
 ; ??? GCC plans to switch to SUBREG_BYTE.  Keep an eye out for the switch
 ; (which is extensive so probably won't happen anytime soon).
+;
+; The mode spec of operand0 use to be OP0, but subword is not a normal rtx.
+; The mode of operand0 is not necessarily the same as the mode of the result,
+; and code which analyzes it would otherwise use the result mode (specified by
+; `&mode') for the mode of operand0.
 
 (drn (subword &options &mode value word-num)
-     (OPTIONS NUMMODE RTX RTX) (NA NA OP0 INT)
+     (OPTIONS NUMMODE RTX RTX) (NA NA ANY INT)
      ARG
      #f
 )
@@ -491,7 +496,7 @@
 ; Set/get/miscellaneous
 
 (drn (nop &options &mode)
-     (OPTIONS VOIDFLTODE) (NA NA)
+     (OPTIONS VOIDMODE) (NA NA)
      MISC
      #f
 )
@@ -975,7 +980,7 @@
 ; ??? There's no real need for mode either.
 
 (drsn (parallel &options &mode ignore expr . exprs)
-      (OPTIONS VOIDFLTODE LOCALS RTX . RTX) (NA NA NA VOID . VOID)
+      (OPTIONS VOIDMODE LOCALS RTX . RTX) (NA NA NA VOID . VOID)
       SEQUENCE
       #f
 )

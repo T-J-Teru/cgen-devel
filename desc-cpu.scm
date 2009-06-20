@@ -1,5 +1,5 @@
 ; Generate .c/.h versions of main elements of cpu description file.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2001, 2002, 2003, 2005 Red Hat, Inc.
 ; This file is part of CGEN.
 
 ; ISA support code.
@@ -17,7 +17,7 @@ static const CGEN_ISA @arch@_cgen_isa_table[] = {
 		      (gen-obj-sanitize
 		       isa
 		       (string-append "  { "
-				      "\"" (obj:name isa) "\", "
+				      "\"" (obj:str-name isa) "\", "
 				      (number->string
 				       (isa-default-insn-bitsize isa))
 				      ", "
@@ -68,13 +68,14 @@ static const CGEN_MACH @arch@_cgen_mach_table[] = {
 		      (gen-obj-sanitize
 		       mach
 		       (string-append "  { "
-				      "\"" (obj:name mach) "\", "
+				      "\"" (obj:str-name mach) "\", "
 				      "\"" (mach-bfd-name mach) "\", "
-				      (mach-enum mach)
+				      (mach-enum mach) ", "
+				      (number->string (cpu-insn-chunk-bitsize (mach-cpu mach)))
 				      " },\n")))
 		    (current-mach-list))
    "\
-  { 0, 0, 0 }
+  { 0, 0, 0, 0 }
 };
 \n"
    )
@@ -111,9 +112,9 @@ static const CGEN_MACH @arch@_cgen_mach_table[] = {
   (logit 2 "Generating instruction field decls ...\n")
   (string-list
    "/* Ifield support.  */\n\n"
-   "extern const struct cgen_ifld @arch@_cgen_ifld_table[];\n\n"
    "/* Ifield attribute indices.  */\n\n"
    (gen-attr-enum-decl "cgen_ifld" (current-ifld-attr-list))
+   (-gen-attr-accessors "cgen_ifld" (current-ifld-attr-list))
    (gen-enum-decl 'ifield_type "@arch@ ifield types"
 		  "@ARCH@_"
 		  (append (gen-obj-list-enums (non-derived-ifields (current-ifld-list)))
@@ -127,16 +128,16 @@ static const CGEN_MACH @arch@_cgen_mach_table[] = {
 
 (define (gen-ifld-defns)
   (logit 2 "Generating ifield table ...\n")
-  (let* ((ifld-list (find (lambda (f) (not (has-attr? f 'VIRTUAL)))
-			  (non-derived-ifields (current-ifld-list))))
+  (let* ((ifld-list (current-ifld-list))
 	 (all-attrs (current-ifld-attr-list))
 	 (num-non-bools (attr-count-non-bools all-attrs)))
     (string-list
-     "\
+     "
 /* The instruction field table.  */
 
-#define A(a) (1 << CONCAT2 (CGEN_IFLD_,a))
-
+"
+     (gen-define-with-symcat "A(a) (1 << CGEN_IFLD_" "a)")
+     "
 const CGEN_IFLD @arch@_cgen_ifld_table[] =
 {
 "
@@ -146,17 +147,22 @@ const CGEN_IFLD @arch@_cgen_ifld_table[] =
 			  (string-append
 			   "  { "
 			   (ifld-enum ifld) ", "
-			   "\"" (obj:name ifld) "\", "
-			   (number->string (ifld-word-offset ifld)) ", "
-			   (number->string (ifld-word-length ifld)) ", "
-			   (number->string (ifld-start ifld #f)) ", "
-			   (number->string (ifld-length ifld)) ", "
+			   "\"" (obj:str-name ifld) "\", "
+                           (if
+                            (or (has-attr? ifld 'VIRTUAL)
+                                (derived-ifield? ifld))
+                             "0, 0, 0, 0,"
+                             (string-append
+		              (number->string (ifld-word-offset ifld)) ", "
+			      (number->string (ifld-word-length ifld)) ", "
+			      (number->string (ifld-start ifld #f)) ", "
+			      (number->string (ifld-length ifld)) ", "))
 			   (gen-obj-attr-defn 'ifld ifld all-attrs
-					      num-non-bools gen-A-attr-mask)
+				      num-non-bools gen-A-attr-mask)
 			   "  },\n")))
       ifld-list)
      "\
-  { 0, 0, 0, 0, 0, 0, {0, {0}} }
+  { 0, 0, 0, 0, 0, 0, " (gen-obj-attr-end-defn all-attrs num-non-bools) " }
 };
 
 #undef A
@@ -175,6 +181,7 @@ const CGEN_IFLD @arch@_cgen_ifld_table[] =
   (string-list
    "/* Hardware attribute indices.  */\n\n"
    (gen-attr-enum-decl "cgen_hw" (current-hw-attr-list))
+   (-gen-attr-accessors "cgen_hw" (current-hw-attr-list))
    (gen-enum-decl 'cgen_hw_type "@arch@ hardware types"
 		  "HW_" ; FIXME: @ARCH@_
 		  (append (nub (map (lambda (hw)
@@ -215,6 +222,7 @@ const CGEN_IFLD @arch@_cgen_ifld_table[] =
    "/* Hardware decls.  */\n\n"
    (string-map -gen-hw-decl (current-hw-list))
    "\n"
+   "extern const CGEN_HW_ENTRY @arch@_cgen_hw_table[];\n"
    )
 )
 
@@ -248,11 +256,11 @@ const CGEN_IFLD @arch@_cgen_ifld_table[] =
      (string-list-map gen-defn (current-kw-list))
      (string-list-map -gen-hw-defn (current-hw-list))
      "
-
 /* The hardware table.  */
 
-#define A(a) (1 << CONCAT2 (CGEN_HW_,a))
-
+"
+     (gen-define-with-symcat "A(a) (1 << CGEN_HW_" "a)")
+     "
 const CGEN_HW_ENTRY @arch@_cgen_hw_table[] =
 {
 "
@@ -261,7 +269,7 @@ const CGEN_HW_ENTRY @arch@_cgen_hw_table[] =
 	(gen-obj-sanitize hw
 			  (string-list
 			   "  { "
-			   "\"" (obj:name hw) "\", "
+			   "\"" (obj:str-name hw) "\", "
 			   (hw-enum hw) ", "
 			   ; ??? No element currently requires both indices and
 			   ; values specs so we only output the needed one.
@@ -275,7 +283,7 @@ const CGEN_HW_ENTRY @arch@_cgen_hw_table[] =
 			   " },\n")))
       (current-hw-list))
      "\
-  { 0, 0, CGEN_ASM_NONE, 0, {0, {0}} }
+  { 0, 0, CGEN_ASM_NONE, 0, " (gen-obj-attr-end-defn all-attrs num-non-bools) " }
 };
 
 #undef A
@@ -292,10 +300,12 @@ const CGEN_HW_ENTRY @arch@_cgen_hw_table[] =
 (define (-gen-hash-defines)
   (logit 2 "Generating #define's ...\n")
   (string-list
+   "#include \"opcode/cgen-bitset.h\"\n"
+   "\n"
    "#define CGEN_ARCH @arch@\n\n"
    "/* Given symbol S, return @arch@_cgen_<S>.  */\n"
-   "#define CGEN_SYM(s) CONCAT3 (@arch@,_cgen_,s)\n\n"
-   "/* Selected cpu families.  */\n"
+   (gen-define-with-symcat "CGEN_SYM(s) @arch@" "_cgen_" "s")
+   "\n\n/* Selected cpu families.  */\n"
    ; FIXME: Move to sim's arch.h.
    (string-map (lambda (cpu)
 		 (gen-obj-sanitize cpu
@@ -323,8 +333,8 @@ const CGEN_HW_ENTRY @arch@_cgen_hw_table[] =
    (if (all-true? (map isa-integral-insn? (current-isa-list))) "1" "0")
    "\n"
    "\n"
-   "/* Maximum nymber of syntax bytes in an instruction.  */\n"
-   "#define CGEN_ACTUAL_MAX_SYNTAX_BYTES "
+   "/* Maximum number of syntax elements in an instruction.  */\n"
+   "#define CGEN_ACTUAL_MAX_SYNTAX_ELEMENTS "
    ; The +2 account for the leading "MNEM" and trailing 0.
    (number->string (+ 2 (apply max (map (lambda (insn) 
 					  (length (syntax-break-out (insn-syntax insn))))
@@ -359,13 +369,15 @@ const CGEN_HW_ENTRY @arch@_cgen_hw_table[] =
   (string-list
    "/* Operand attribute indices.  */\n\n"
    (gen-attr-enum-decl "cgen_operand" (current-op-attr-list))
+   (-gen-attr-accessors "cgen_operand" (current-op-attr-list))
    (gen-enum-decl 'cgen_operand_type "@arch@ operand types"
 		  "@ARCH@_OPERAND_"
 		  (nub (append (gen-obj-list-enums (current-op-list))
 			       '((max)))
 		       car))
    "/* Number of operands types.  */\n"
-   "#define MAX_OPERANDS ((int) @ARCH@_OPERAND_MAX)\n\n"
+   "#define MAX_OPERANDS " (number->string (length (gen-obj-list-enums (current-op-list)))) "\n\n"
+   ; was: "#define MAX_OPERANDS ((int) @ARCH@_OPERAND_MAX)\n\n"
    "/* Maximum number of operands referenced by any insn.  */\n"
    "#define MAX_OPERAND_INSTANCES "
    (number->string (max-operand-instances))
@@ -375,17 +387,72 @@ const CGEN_HW_ENTRY @arch@_cgen_hw_table[] =
 
 ; Generate C code to define the operand table.
 
+(define ifld-number-cache #f)
+(define (ifld-number f)
+  (if (not ifld-number-cache)
+      (let* ((ls (find (lambda (f) (not (has-attr? f 'VIRTUAL)))
+		       (non-derived-ifields (current-ifld-list))))
+	     (numls (iota (length ls))))
+	(set! ifld-number-cache 
+	      (map (lambda (elt num) (cons (obj:name elt) num)) 
+		   ls numls))))
+  (number->string (cdr (assoc (obj:name f) ifld-number-cache))))
+
+(define (gen-maybe-multi-ifld-of-op op)
+  (let* ((idx (op:index op))
+	 (ty (hw-index:type idx))
+	 (fld (hw-index:value idx)))
+    (gen-maybe-multi-ifld ty fld)))
+
+(define (gen-maybe-multi-ifld ty fld)
+  (let* ((field-ref "0")
+	 (field-count "0"))
+    (if (equal? ty 'ifield)
+	(if (multi-ifield? fld) 
+	    (begin
+	      (set! field-ref (string-append "&" (ifld-enum fld) "_MULTI_IFIELD[0]"))
+	      (set! field-count (number->string (length (elm-get fld 'subfields)))))
+	    ; else	    
+	      (set! field-ref (string-append "&@arch@_cgen_ifld_table[" (ifld-enum fld) "]"))))
+    (string-append "{ " field-count ", { (const PTR) " field-ref " } }")))
+
+(define (gen-multi-ifield-nodes)
+  (let ((multis (find multi-ifield? (current-ifld-list))))
+    (apply string-append
+	   (append 
+	    
+	    '("\n\n/* multi ifield declarations */\n\n")
+	    (map   
+	     (lambda (ifld) 
+	       (string-append 
+		"const CGEN_MAYBE_MULTI_IFLD " 
+		(ifld-enum ifld) "_MULTI_IFIELD [];\n"))
+	     multis)
+
+	    '("\n\n/* multi ifield definitions */\n\n")
+	    (map   
+	     (lambda (ifld)
+	       (string-append
+		"const CGEN_MAYBE_MULTI_IFLD " 
+		(ifld-enum ifld) "_MULTI_IFIELD [] =\n{"
+		(apply string-append 
+		       (map (lambda (x) (string-append "\n    " (gen-maybe-multi-ifld 'ifield x) ",")) 
+			    (elm-get ifld 'subfields)))
+		"\n    { 0, { (const PTR) 0 } }\n};\n"))
+	     multis)))))
+
 (define (gen-operand-table)
   (logit 2 "Generating operand table ...\n")
   (let* ((all-attrs (current-op-attr-list))
 	 (num-non-bools (attr-count-non-bools all-attrs)))
     (string-list
-     "\
+     "
 /* The operand table.  */
 
-#define A(a) (1 << CONCAT2 (CGEN_OPERAND_,a))
-#define OPERAND(op) CONCAT2 (@ARCH@_OPERAND_,op)
-
+"
+     (gen-define-with-symcat "A(a) (1 << CGEN_OPERAND_" "a)")
+     (gen-define-with-symcat "OPERAND(op) @ARCH@_OPERAND_" "op")
+"
 const CGEN_OPERAND @arch@_cgen_operand_table[] =
 {
 "
@@ -393,25 +460,27 @@ const CGEN_OPERAND @arch@_cgen_operand_table[] =
       (lambda (op)
 	(gen-obj-sanitize op
 			  (string-append
-			   "/* " (obj:name op) ": " (obj:comment op) " */\n"
+			   "/* " (obj:str-name op) ": " (obj:comment op) " */\n"
                           (if (or (derived-operand? op)
                                   (anyof-operand? op))
                               ""
                               (string-append 
 			         "  { "
-    		   	         "\"" (obj:name op) "\", "
+    		   	         "\"" (obj:str-name op) "\", "
 			         (op-enum op) ", "
 			         (hw-enum (op:hw-name op)) ", "
 			         (number->string (op:start op)) ", "
 			         (number->string (op:length op)) ",\n"
+			         "    "
+                                 (gen-maybe-multi-ifld-of-op op) ", \n"
 			         "    "
 			         (gen-obj-attr-defn 'operand op all-attrs
 				       	            num-non-bools gen-A-attr-mask)
 			         "  },\n"
 			      )))))
       (current-op-list))
-     "\
-  { 0, 0, 0, 0, 0, {0, {0}} }
+     "/* sentinel */\n\
+  { 0, 0, 0, 0, 0,\n    { 0, { (const PTR) 0 } },\n    " (gen-obj-attr-end-defn all-attrs num-non-bools) " }
 };
 
 #undef A
@@ -430,6 +499,7 @@ const CGEN_OPERAND @arch@_cgen_operand_table[] =
   (string-list
    "/* Insn attribute indices.  */\n\n"
    (gen-attr-enum-decl "cgen_insn" (current-insn-attr-list))
+   (-gen-attr-accessors "cgen_insn" (current-insn-attr-list))
    )
 )
 
@@ -445,7 +515,7 @@ const CGEN_OPERAND @arch@_cgen_operand_table[] =
     "  {\n"
     "    "
     (if (has-attr? insn 'ALIAS) "-1" (insn-enum insn)) ", "
-    "\"" (obj:name insn) "\", "
+    "\"" (obj:str-name insn) "\", "
     "\"" (insn-mnemonic insn) "\", "
     ;(if (has-attr? insn 'ALIAS) "0" (number->string (insn-length insn))) ",\n"
     (number->string (insn-length insn)) ",\n"
@@ -476,18 +546,19 @@ const CGEN_OPERAND @arch@_cgen_operand_table[] =
   (let* ((all-attrs (current-insn-attr-list))
 	 (num-non-bools (attr-count-non-bools all-attrs)))
     (string-write
-     "\
-#define A(a) (1 << CONCAT2 (CGEN_INSN_,a))
-#define OP(field) CGEN_SYNTAX_MAKE_FIELD (OPERAND (field))
-
+     "
 /* The instruction table.  */
 
+#define OP(field) CGEN_SYNTAX_MAKE_FIELD (OPERAND (field))
+"
+     (gen-define-with-symcat "A(a) (1 << CGEN_INSN_" "a)")
+"
 static const CGEN_IBASE @arch@_cgen_insn_table[MAX_INSNS] =
 {
   /* Special null first entry.
      A `num' value of zero is thus invalid.
      Also, the special `invalid' insn resides here.  */
-  { 0, 0, 0, 0, {0, {0}} },\n"
+  { 0, 0, 0, 0, " (gen-obj-attr-end-defn all-attrs num-non-bools) " },\n"
 
      (lambda ()
        (string-write-map (lambda (insn)
@@ -498,9 +569,8 @@ static const CGEN_IBASE @arch@_cgen_insn_table[MAX_INSNS] =
      "\
 };
 
-#undef A
-#undef MNEM
 #undef OP
+#undef A
 
 "
      )
@@ -523,12 +593,17 @@ static const CGEN_IBASE @arch@_cgen_insn_table[MAX_INSNS] =
 (define (-gen-cpu-open)
   (string-append
    "\
+static const CGEN_MACH * lookup_mach_via_bfd_name (const CGEN_MACH *, const char *);
+static void build_hw_table      (CGEN_CPU_TABLE *);
+static void build_ifield_table  (CGEN_CPU_TABLE *);
+static void build_operand_table (CGEN_CPU_TABLE *);
+static void build_insn_table    (CGEN_CPU_TABLE *);
+static void @arch@_cgen_rebuild_tables (CGEN_CPU_TABLE *);
+
 /* Subroutine of @arch@_cgen_cpu_open to look up a mach via its bfd name.  */
 
 static const CGEN_MACH *
-lookup_mach_via_bfd_name (table, name)
-     const CGEN_MACH *table;
-     const char *name;
+lookup_mach_via_bfd_name (const CGEN_MACH *table, const char *name)
 {
   while (table->name)
     {
@@ -542,8 +617,7 @@ lookup_mach_via_bfd_name (table, name)
 /* Subroutine of @arch@_cgen_cpu_open to build the hardware table.  */
 
 static void
-build_hw_table (cd)
-     CGEN_CPU_TABLE *cd;
+build_hw_table (CGEN_CPU_TABLE *cd)
 {
   int i;
   int machs = cd->machs;
@@ -569,8 +643,7 @@ build_hw_table (cd)
 /* Subroutine of @arch@_cgen_cpu_open to build the hardware table.  */
 
 static void
-build_ifield_table (cd)
-     CGEN_CPU_TABLE *cd;
+build_ifield_table (CGEN_CPU_TABLE *cd)
 {
   cd->ifld_table = & @arch@_cgen_ifld_table[0];
 }
@@ -578,8 +651,7 @@ build_ifield_table (cd)
 /* Subroutine of @arch@_cgen_cpu_open to build the hardware table.  */
 
 static void
-build_operand_table (cd)
-     CGEN_CPU_TABLE *cd;
+build_operand_table (CGEN_CPU_TABLE *cd)
 {
   int i;
   int machs = cd->machs;
@@ -587,8 +659,7 @@ build_operand_table (cd)
   /* MAX_OPERANDS is only an upper bound on the number of selected entries.
      However each entry is indexed by it's enum so there can be holes in
      the table.  */
-  const CGEN_OPERAND **selected =
-    (const CGEN_OPERAND **) xmalloc (MAX_OPERANDS * sizeof (CGEN_OPERAND *));
+  const CGEN_OPERAND **selected = xmalloc (MAX_OPERANDS * sizeof (* selected));
 
   cd->operand_table.init_entries = init;
   cd->operand_table.entry_size = sizeof (CGEN_OPERAND);
@@ -611,12 +682,11 @@ build_operand_table (cd)
    operand elements to be in the table [which they mightn't be].  */
 
 static void
-build_insn_table (cd)
-     CGEN_CPU_TABLE *cd;
+build_insn_table (CGEN_CPU_TABLE *cd)
 {
   int i;
   const CGEN_IBASE *ib = & @arch@_cgen_insn_table[0];
-  CGEN_INSN *insns = (CGEN_INSN *) xmalloc (MAX_INSNS * sizeof (CGEN_INSN));
+  CGEN_INSN *insns = xmalloc (MAX_INSNS * sizeof (CGEN_INSN));
 
   memset (insns, 0, MAX_INSNS * sizeof (CGEN_INSN));
   for (i = 0; i < MAX_INSNS; ++i)
@@ -629,14 +699,11 @@ build_insn_table (cd)
 /* Subroutine of @arch@_cgen_cpu_open to rebuild the tables.  */
 
 static void
-@arch@_cgen_rebuild_tables (cd)
-     CGEN_CPU_TABLE *cd;
+@arch@_cgen_rebuild_tables (CGEN_CPU_TABLE *cd)
 {
-  int i,n_isas;
-  unsigned int isas = cd->isas;
-#if 0
+  int i;
+  CGEN_BITSET *isas = cd->isas;
   unsigned int machs = cd->machs;
-#endif
 
   cd->int_insn_p = CGEN_INT_INSN_P;
 
@@ -644,28 +711,28 @@ static void
 #define UNSET (CGEN_SIZE_UNKNOWN + 1)
   cd->default_insn_bitsize = UNSET;
   cd->base_insn_bitsize = UNSET;
-  cd->min_insn_bitsize = 65535; /* some ridiculously big number */
+  cd->min_insn_bitsize = 65535; /* Some ridiculously big number.  */
   cd->max_insn_bitsize = 0;
   for (i = 0; i < MAX_ISAS; ++i)
-    if (((1 << i) & isas) != 0)
+    if (cgen_bitset_contains (isas, i))
       {
 	const CGEN_ISA *isa = & @arch@_cgen_isa_table[i];
 
-	/* Default insn sizes of all selected isas must be equal or we set
-	   the result to 0, meaning \"unknown\".  */
+	/* Default insn sizes of all selected isas must be
+	   equal or we set the result to 0, meaning \"unknown\".  */
 	if (cd->default_insn_bitsize == UNSET)
 	  cd->default_insn_bitsize = isa->default_insn_bitsize;
 	else if (isa->default_insn_bitsize == cd->default_insn_bitsize)
-	  ; /* this is ok */
+	  ; /* This is ok.  */
 	else
 	  cd->default_insn_bitsize = CGEN_SIZE_UNKNOWN;
 
-	/* Base insn sizes of all selected isas must be equal or we set
-	   the result to 0, meaning \"unknown\".  */
+	/* Base insn sizes of all selected isas must be equal
+	   or we set the result to 0, meaning \"unknown\".  */
 	if (cd->base_insn_bitsize == UNSET)
 	  cd->base_insn_bitsize = isa->base_insn_bitsize;
 	else if (isa->base_insn_bitsize == cd->base_insn_bitsize)
-	  ; /* this is ok */
+	  ; /* This is ok.  */
 	else
 	  cd->base_insn_bitsize = CGEN_SIZE_UNKNOWN;
 
@@ -674,20 +741,26 @@ static void
 	  cd->min_insn_bitsize = isa->min_insn_bitsize;
 	if (isa->max_insn_bitsize > cd->max_insn_bitsize)
 	  cd->max_insn_bitsize = isa->max_insn_bitsize;
-
-	++n_isas;
       }
 
-#if 0 /* Does nothing?? */
   /* Data derived from the mach spec.  */
   for (i = 0; i < MAX_MACHS; ++i)
     if (((1 << i) & machs) != 0)
       {
 	const CGEN_MACH *mach = & @arch@_cgen_mach_table[i];
 
-	++n_machs;
+	if (mach->insn_chunk_bitsize != 0)
+	{
+	  if (cd->insn_chunk_bitsize != 0 && cd->insn_chunk_bitsize != mach->insn_chunk_bitsize)
+	    {
+	      fprintf (stderr, \"@arch@_cgen_rebuild_tables: conflicting insn-chunk-bitsize values: `%d' vs. `%d'\\n\",
+		       cd->insn_chunk_bitsize, mach->insn_chunk_bitsize);
+	      abort ();
+	    }
+
+ 	  cd->insn_chunk_bitsize = mach->insn_chunk_bitsize;
+	}
       }
-#endif
 
   /* Determine which hw elements are used by MACH.  */
   build_hw_table (cd);
@@ -726,7 +799,7 @@ CGEN_CPU_DESC
 {
   CGEN_CPU_TABLE *cd = (CGEN_CPU_TABLE *) xmalloc (sizeof (CGEN_CPU_TABLE));
   static int init_p;
-  unsigned int isas = 0;  /* 0 = \"unspecified\" */
+  CGEN_BITSET *isas = 0;  /* 0 = \"unspecified\" */
   unsigned int machs = 0; /* 0 = \"unspecified\" */
   enum cgen_endian endian = CGEN_ENDIAN_UNKNOWN;
   va_list ap;
@@ -745,7 +818,7 @@ CGEN_CPU_DESC
       switch (arg_type)
 	{
 	case CGEN_CPU_OPEN_ISAS :
-	  isas = va_arg (ap, unsigned int);
+	  isas = va_arg (ap, CGEN_BITSET *);
 	  break;
 	case CGEN_CPU_OPEN_MACHS :
 	  machs = va_arg (ap, unsigned int);
@@ -756,7 +829,7 @@ CGEN_CPU_DESC
 	    const CGEN_MACH *mach =
 	      lookup_mach_via_bfd_name (@arch@_cgen_mach_table, name);
 
-	    machs |= mach->num << 1;
+	    machs |= 1 << mach->num;
 	    break;
 	  }
 	case CGEN_CPU_OPEN_ENDIAN :
@@ -771,14 +844,11 @@ CGEN_CPU_DESC
     }
   va_end (ap);
 
-  /* mach unspecified means \"all\" */
+  /* Mach unspecified means \"all\".  */
   if (machs == 0)
     machs = (1 << MAX_MACHS) - 1;
-  /* base mach is always selected */
+  /* Base mach is always selected.  */
   machs |= 1;
-  /* isa unspecified means \"all\" */
-  if (isas == 0)
-    isas = (1 << MAX_ISAS) - 1;
   if (endian == CGEN_ENDIAN_UNKNOWN)
     {
       /* ??? If target has only one, could have a default.  */
@@ -786,7 +856,7 @@ CGEN_CPU_DESC
       abort ();
     }
 
-  cd->isas = isas;
+  cd->isas = cgen_bitset_copy (isas);
   cd->machs = machs;
   cd->endian = endian;
   /* FIXME: for the sparc case we can determine insn-endianness statically.
@@ -809,9 +879,7 @@ CGEN_CPU_DESC
    MACH_NAME is the bfd name of the mach.  */
 
 CGEN_CPU_DESC
-@arch@_cgen_cpu_open_1 (mach_name, endian)
-     const char *mach_name;
-     enum cgen_endian endian;
+@arch@_cgen_cpu_open_1 (const char *mach_name, enum cgen_endian endian)
 {
   return @arch@_cgen_cpu_open (CGEN_CPU_OPEN_BFDMACH, mach_name,
 			       CGEN_CPU_OPEN_ENDIAN, endian,
@@ -824,13 +892,39 @@ CGEN_CPU_DESC
    place as some simulator ports use this but they don't use libopcodes.  */
 
 void
-@arch@_cgen_cpu_close (cd)
-     CGEN_CPU_DESC cd;
+@arch@_cgen_cpu_close (CGEN_CPU_DESC cd)
 {
+  unsigned int i;
+  const CGEN_INSN *insns;
+
+  if (cd->macro_insn_table.init_entries)
+    {
+      insns = cd->macro_insn_table.init_entries;
+      for (i = 0; i < cd->macro_insn_table.num_init_entries; ++i, ++insns)
+	if (CGEN_INSN_RX ((insns)))
+	  regfree (CGEN_INSN_RX (insns));
+    }
+
+  if (cd->insn_table.init_entries)
+    {
+      insns = cd->insn_table.init_entries;
+      for (i = 0; i < cd->insn_table.num_init_entries; ++i, ++insns)
+	if (CGEN_INSN_RX (insns))
+	  regfree (CGEN_INSN_RX (insns));
+    }  
+
+  if (cd->macro_insn_table.init_entries)
+    free ((CGEN_INSN *) cd->macro_insn_table.init_entries);
+
   if (cd->insn_table.init_entries)
     free ((CGEN_INSN *) cd->insn_table.init_entries);
+
   if (cd->hw_table.entries)
     free ((CGEN_HW_ENTRY *) cd->hw_table.entries);
+
+  if (cd->operand_table.entries)
+    free ((CGEN_HW_ENTRY *) cd->operand_table.entries);
+
   free (cd);
 }
 
@@ -858,7 +952,7 @@ void
 /* Initialize anything needed to be done once, before any cpu_open call.  */
 
 static void
-init_tables ()
+init_tables (void)
 {\n"
    -cputab-init-code
    "}\n\n"
@@ -873,7 +967,7 @@ init_tables ()
 (define (cgen-desc.h)
   (logit 1 "Generating " (current-arch-name) "-desc.h ...\n")
   (string-write
-   (gen-copyright "CPU data header for @arch@."
+   (gen-c-copyright "CPU data header for @arch@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "\
 #ifndef @ARCH@_CPU_H
@@ -903,11 +997,12 @@ init_tables ()
    gen-insn-decls
    "/* cgen.h uses things we just defined.  */\n"
    "#include \"opcode/cgen.h\"\n\n"
+   "extern const struct cgen_ifld @arch@_cgen_ifld_table[];\n\n"
    -gen-attr-table-decls
    -gen-mach-table-decls
    gen-hw-table-decls
    "\n"
-   (lambda () (gen-extra-cpu.h srcdir (current-arch-name))) ; from <arch>.opc
+   (lambda () (gen-extra-cpu.h (opc-file-path) (current-arch-name)))
    "
 
 #endif /* @ARCH@_CPU_H */
@@ -925,27 +1020,28 @@ init_tables ()
 (define (cgen-desc.c)
   (logit 1 "Generating " (current-arch-name) "-desc.c ...\n")
   (string-write
-   (gen-copyright "CPU data for @arch@."
+   (gen-c-copyright "CPU data for @arch@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "\
 #include \"sysdep.h\"
-#include <ctype.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include \"ansidecl.h\"
 #include \"bfd.h\"
 #include \"symcat.h\"
-#include \"@prefix@-desc.h\"
-#include \"@prefix@-opc.h\"
+#include \"@arch@-desc.h\"
+#include \"@arch@-opc.h\"
 #include \"opintl.h\"
 #include \"libiberty.h\"
+#include \"xregex.h\"
 \n"
-   (lambda () (gen-extra-cpu.c srcdir (current-arch-name))) ; from <arch>.opc
+   (lambda () (gen-extra-cpu.c (opc-file-path) (current-arch-name)))
    gen-attr-table-defns
    -gen-isa-table-defns
    -gen-mach-table-defns
    gen-hw-table-defns
    gen-ifld-defns
+   gen-multi-ifield-nodes
    gen-operand-table
    gen-insn-table
    gen-init-fns

@@ -1,5 +1,5 @@
 ; CPU architecture description.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2003 Red Hat, Inc.
 ; This file is part of CGEN.
 ; See file COPYING.CGEN for details.
 
@@ -58,6 +58,7 @@
    insns-analyzed? semantics-analyzed? aliases-analyzed?
    )
 )
+
 (define-setters <arch> arch 
   (data
    attr-list enum-list kw-list
@@ -138,7 +139,13 @@
 ; Could use a hash table except that there currently aren't that many.
 
 (define (current-attr-list) (car (arch-attr-list CURRENT-ARCH)))
+
 (define (current-attr-add! a)
+  ; NOTE: While putting this test in define-attr feels better, having it here
+  ; is more robust, internal calls get checked too.  Thus it's here.
+  ; Ditto for all the other such tests in this file.
+  (if (current-attr-lookup (obj:name a))
+      (parse-error "define-attr" "attribute already defined" (obj:name a)))
   (let ((adata (arch-attr-list CURRENT-ARCH)))
     ; Build list in normal order so we don't have to reverse it at the end
     ; (since our format is non-trivial).
@@ -151,6 +158,7 @@
 	  (append! (cdr adata) (acons (obj:name a) a nil)))))
   *UNSPECIFIED*
 )
+
 (define (current-attr-lookup attr-name)
   (assq-ref (cdr (arch-attr-list CURRENT-ARCH)) attr-name)
 )
@@ -158,9 +166,14 @@
 ; Enums.
 
 (define (current-enum-list) (arch-enum-list CURRENT-ARCH))
+
 (define (current-enum-add! e)
+  (if (current-enum-lookup (obj:name e))
+      (parse-error "define-enum" "enum already defined" (obj:name e)))
   (arch-set-enum-list! CURRENT-ARCH (cons e (arch-enum-list CURRENT-ARCH)))
+  *UNSPECIFIED*
 )
+
 (define (current-enum-lookup enum-name)
   (object-assq enum-name (current-enum-list))
 )
@@ -168,9 +181,14 @@
 ; Keywords.
 
 (define (current-kw-list) (arch-kw-list CURRENT-ARCH))
+
 (define (current-kw-add! kw)
+  (if (current-kw-lookup (obj:name kw))
+      (parse-error "define-keyword" "keyword already defined" (obj:name kw)))
   (arch-set-kw-list! CURRENT-ARCH (cons kw (arch-kw-list CURRENT-ARCH)))
+  *UNSPECIFIED*
 )
+
 (define (current-kw-lookup kw-name)
   (object-assq kw-name (current-kw-list))
 )
@@ -178,9 +196,14 @@
 ; Instruction sets.
 
 (define (current-isa-list) (arch-isa-list CURRENT-ARCH))
+
 (define (current-isa-add! i)
+  (if (current-isa-lookup (obj:name i))
+      (parse-error "define-isa" "isa already defined" (obj:name i)))
   (arch-set-isa-list! CURRENT-ARCH (cons i (arch-isa-list CURRENT-ARCH)))
+  *UNSPECIFIED*
 )
+
 (define (current-isa-lookup isa-name)
   (object-assq isa-name (current-isa-list))
 )
@@ -188,9 +211,14 @@
 ; Cpu families.
 
 (define (current-cpu-list) (arch-cpu-list CURRENT-ARCH))
+
 (define (current-cpu-add! c)
+  (if (current-cpu-lookup (obj:name c))
+      (parse-error "define-cpu" "cpu already defined" (obj:name c)))
   (arch-set-cpu-list! CURRENT-ARCH (cons c (arch-cpu-list CURRENT-ARCH)))
+  *UNSPECIFIED*
 )
+
 (define (current-cpu-lookup cpu-name)
   (object-assq cpu-name (current-cpu-list))
 )
@@ -198,9 +226,14 @@
 ; Machines.
 
 (define (current-mach-list) (arch-mach-list CURRENT-ARCH))
+
 (define (current-mach-add! m)
+  (if (current-mach-lookup (obj:name m))
+      (parse-error "define-mach" "mach already defined" (obj:name m)))
   (arch-set-mach-list! CURRENT-ARCH (cons m (arch-mach-list CURRENT-ARCH)))
+  *UNSPECIFIED*
 )
+
 (define (current-mach-lookup mach-name)
   (object-assq mach-name (current-mach-list))
 )
@@ -208,9 +241,14 @@
 ; Models.
 
 (define (current-model-list) (arch-model-list CURRENT-ARCH))
+
 (define (current-model-add! m)
+  (if (current-model-lookup (obj:name m))
+      (parse-error "define-model" "model already defined" (obj:name m)))
   (arch-set-model-list! CURRENT-ARCH (cons m (arch-model-list CURRENT-ARCH)))
+  *UNSPECIFIED*
 )
+
 (define (current-model-lookup model-name)
   (object-assq model-name (current-model-list))
 )
@@ -218,9 +256,14 @@
 ; Hardware elements.
 
 (define (current-hw-list) (arch-hw-list CURRENT-ARCH))
+
 (define (current-hw-add! hw)
+  (if (current-hw-lookup (obj:name hw))
+      (parse-error "define-hardware" "hardware already defined" (obj:name hw)))
   (arch-set-hw-list! CURRENT-ARCH (cons hw (arch-hw-list CURRENT-ARCH)))
+  *UNSPECIFIED*
 )
+
 (define (current-hw-lookup hw)
   (if (object? hw)
       hw
@@ -233,25 +276,71 @@
 ; Instruction fields.
 
 (define (current-ifld-list) (map cdr (arch-ifld-list CURRENT-ARCH)))
+
 (define (current-ifld-add! f)
+  (if (-ifld-already-defined? f)
+      (parse-error "define-ifield" "ifield already defined" (obj:name f)))
   (arch-set-ifld-list! CURRENT-ARCH
 		       (acons (obj:name f) f (arch-ifld-list CURRENT-ARCH)))
+  *UNSPECIFIED*
 )
+
 (define (current-ifld-lookup x)
   (if (ifield? x)
       x
       (assq-ref (arch-ifld-list CURRENT-ARCH) x))
 )
 
+; Return a boolean indicating if <ifield> F is currently defined.
+; This is slightly complicated because multiple isas can have different
+; ifields with the same name.
+
+(define (-ifld-already-defined? f)
+  (let ((iflds (find (lambda (ff) (eq? (obj:name f) (car ff)))
+		     (arch-ifld-list CURRENT-ARCH))))
+    ; We've got all the ifields with the same name,
+    ; now see if any have the same ISA as F.
+    (let ((result #f)
+	  (f-isas (obj-isa-list f)))
+      (for-each (lambda (ff)
+		  (if (not (null? (intersection f-isas (obj-isa-list (cdr ff)))))
+		      (set! result #t)))
+		iflds)
+      result))
+)
+
 ; Operands.
 
 (define (current-op-list) (map cdr (arch-op-list CURRENT-ARCH)))
+
 (define (current-op-add! op)
+  (if (-op-already-defined? op)
+      (parse-error "define-operand" "operand already defined" (obj:name op)))
   (arch-set-op-list! CURRENT-ARCH
 		     (acons (obj:name op) op (arch-op-list CURRENT-ARCH)))
+  *UNSPECIFIED*
 )
+
 (define (current-op-lookup name)
   (assq-ref (arch-op-list CURRENT-ARCH) name)
+)
+
+; Return a boolean indicating if <operand> OP is currently defined.
+; This is slightly complicated because multiple isas can have different
+; operands with the same name.
+
+(define (-op-already-defined? op)
+  (let ((ops (find (lambda (o) (eq? (obj:name op) (car o)))
+		     (arch-op-list CURRENT-ARCH))))
+    ; We've got all the operands with the same name,
+    ; now see if any have the same ISA as OP.
+    (let ((result #f)
+	  (op-isas (obj-isa-list op)))
+      (for-each (lambda (o)
+		  (if (not (null? (intersection op-isas (obj-isa-list (cdr o)))))
+		      (set! result #t)))
+		ops)
+      result))
 )
 
 ; Instruction field formats.
@@ -266,13 +355,37 @@
 ; Instructions.
 
 (define (current-raw-insn-list) (arch-insn-list CURRENT-ARCH))
+
 (define (current-insn-list) (map cdr (arch-insn-list CURRENT-ARCH)))
+
 (define (current-insn-add! i)
+  (if (-insn-already-defined? i)
+      (parse-error "define-insn" "insn already defined" (obj:name i)))
   (arch-set-insn-list! CURRENT-ARCH
 		       (acons (obj:name i) i (arch-insn-list CURRENT-ARCH)))
+  *UNSPECIFIED*
 )
+
 (define (current-insn-lookup name)
   (assq-ref (arch-insn-list CURRENT-ARCH) name)
+)
+
+; Return a boolean indicating if <insn> INSN is currently defined.
+; This is slightly complicated because multiple isas can have different
+; insns with the same name.
+
+(define (-insn-already-defined? insn)
+  (let ((insns (find (lambda (i) (eq? (obj:name insn) (car i)))
+		     (arch-insn-list CURRENT-ARCH))))
+    ; We've got all the insns with the same name,
+    ; now see if any have the same ISA as INSN.
+    (let ((result #f)
+	  (insn-isas (obj-isa-list insn)))
+      (for-each (lambda (i)
+		  (if (not (null? (intersection insn-isas (obj-isa-list (cdr i)))))
+		      (set! result #t)))
+		insns)
+      result))
 )
 
 ; Return the insn in the `car' position of INSN-LIST.
@@ -292,21 +405,49 @@
 ; Macro instructions.
 
 (define (current-minsn-list) (map cdr (arch-minsn-list CURRENT-ARCH)))
+
 (define (current-minsn-add! m)
+  (if (-minsn-already-defined? m)
+      (parse-error "define-minsn" "macro-insn already defined" (obj:name m)))
   (arch-set-minsn-list! CURRENT-ARCH
 			(acons (obj:name m) m (arch-minsn-list CURRENT-ARCH)))
+  *UNSPECIFIED*
 )
+
 (define (current-minsn-lookup name)
   (assq-ref (arch-minsn-list CURRENT-ARCH) name)
+)
+
+; Return a boolean indicating if <macro-insn> MINSN is currently defined.
+; This is slightly complicated because multiple isas can have different
+; macro-insns with the same name.
+
+(define (-minsn-already-defined? m)
+  (let ((minsns (find (lambda (mm) (eq? (obj:name m) (car mm)))
+		      (arch-minsn-list CURRENT-ARCH))))
+    ; We've got all the macro-insns with the same name,
+    ; now see if any have the same ISA as M.
+    (let ((result #f)
+	  (m-isas (obj-isa-list m)))
+      (for-each (lambda (mm)
+		  (if (not (null? (intersection m-isas (obj-isa-list (cdr mm)))))
+		      (set! result #t)))
+		minsns)
+      result))
 )
 
 ; rtx subroutines.
 
 (define (current-subr-list) (map cdr (arch-subr-list CURRENT-ARCH)))
-(define (current-subr-add! m)
+
+(define (current-subr-add! s)
+  (if (current-subr-lookup (obj:name s))
+      (parse-error "define-subr" "subroutine already defined" (obj:name s)))
   (arch-set-subr-list! CURRENT-ARCH
-		       (acons (obj:name m) m (arch-subr-list CURRENT-ARCH)))
+		       (acons (obj:name s) s (arch-subr-list CURRENT-ARCH)))
+  *UNSPECIFIED*
 )
+
 (define (current-subr-lookup name)
   (assq-ref (arch-subr-list CURRENT-ARCH) name)
 )
@@ -501,18 +642,24 @@
       ; for it.
       (if (= (length isas) 1)
 	  '(for)
-	  '(for ifield operand insn))
+	  '(for ifield operand insn hardware))
       (cons 'values isa-enums))
     )
 
   *UNSPECIFIED*
 )
 
+; Return list of ISA names specified by OBJ.
+
+(define (obj-isa-list obj)
+  (bitset-attr->list (obj-attr-value obj 'ISA))
+)
+
 ; Return #t if <isa> ISA is supported by OBJ.
 ; This is done by looking for the ISA attribute in OBJ.
 
 (define (isa-supports? isa obj)
-  (let ((isas (bitset-attr->list (obj-attr-value obj 'ISA)))
+  (let ((isas (obj-isa-list obj))
 	(name (obj:name isa)))
     (->bool (memq name isas)))
 )
@@ -755,8 +902,7 @@
   (apply min (cons 65535
 		   (map insn-length (find (lambda (insn)
 					    (and (not (has-attr? insn 'ALIAS))
-						 (eq? (obj-attr-value insn 'ISA)
-						      (obj:name isa))))
+						 (isa-supports? isa insn)))
 					  (non-multi-insns (current-insn-list))))))
 )
 
@@ -766,8 +912,7 @@
   (apply max (cons 0
 		   (map insn-length (find (lambda (insn)
 					    (and (not (has-attr? insn 'ALIAS))
-						 (eq? (obj-attr-value insn 'ISA)
-						      (obj:name isa))))
+						 (isa-supports? isa insn)))
 					  (non-multi-insns (current-insn-list))))))
 )
 
@@ -992,6 +1137,10 @@
 		; number of bits in a word.
 		word-bitsize
 
+		; number of bits in a chunk of an instruction word, for
+		; endianness conversion purposes; 0 = no chunking
+		insn-chunk-bitsize
+
 		; Transformation to use in generated files should one be
 		; needed.  At present the only supported value is a string
 		; which is the file suffix.
@@ -1004,13 +1153,19 @@
 		; Allow a cpu family to override the isa parallel-insns spec.
 		; ??? Concession to the m32r port which can go away, in time.
 		parallel-insns
+
+		; Computed: maximum number of insns which may pass before there
+		; an insn writes back its output operands.
+		max-delay
+
 		)
 	      nil)
 )
 
 ; Accessors.
 
-(define-getters <cpu> cpu (word-bitsize file-transform parallel-insns))
+(define-getters <cpu> cpu (word-bitsize insn-chunk-bitsize file-transform parallel-insns max-delay))
+(define-setters <cpu> cpu (max-delay))
 
 ; Return endianness of instructions.
 
@@ -1046,11 +1201,11 @@
 
 (define (-cpu-parse name comment attrs
 		    endian insn-endian data-endian float-endian
-		    word-bitsize file-transform parallel-insns)
+		    word-bitsize insn-chunk-bitsize file-transform parallel-insns)
   (logit 2 "Processing cpu family " name " ...\n")
   ; Pick out name first 'cus we need it as a string(/symbol).
   (let* ((name (parse-name name "cpu"))
-	 (errtxt (string-append "cpu " name)))
+	 (errtxt (stringsym-append "cpu " name)))
     (if (keep-cpu? name)
 	(make <cpu>
 	      name
@@ -1058,8 +1213,11 @@
 	      (atlist-parse attrs "cpu" errtxt)
 	      endian insn-endian data-endian float-endian
 	      word-bitsize
+	      insn-chunk-bitsize
 	      file-transform
-	      parallel-insns)
+	      parallel-insns
+	      0 ; default max-delay. will compute correct value
+	      )
 	(begin
 	  (logit 2 "Ignoring " name ".\n")
 	  #f))) ; cpu is not to be kept
@@ -1081,7 +1239,8 @@
 	  (insn-endian #f)
 	  (data-endian #f)
 	  (float-endian #f)
-	  (word-bitsize nil)
+	  (word-bitsize #f)
+	  (insn-chunk-bitsize 0)
 	  (file-transform "")
 	  ; FIXME: Hobbit computes the wrong symbol for `parallel-insns'
 	  ; in the `case' expression below because there is a local var
@@ -1103,6 +1262,7 @@
 		((data-endian) (set! data-endian (cadr arg)))
 		((float-endian) (set! float-endian (cadr arg)))
 		((word-bitsize) (set! word-bitsize (cadr arg)))
+		((insn-chunk-bitsize) (set! insn-chunk-bitsize (cadr arg)))
 		((file-transform) (set! file-transform (cadr arg)))
 		((parallel-insns) (set! parallel-insns- (cadr arg)))
 		(else (parse-error errtxt "invalid cpu arg" arg)))
@@ -1110,7 +1270,7 @@
       ; Now that we've identified the elements, build the object.
       (-cpu-parse name comment attrs
 		  endian insn-endian data-endian float-endian
-		  word-bitsize file-transform parallel-insns-)
+		  word-bitsize insn-chunk-bitsize file-transform parallel-insns-)
       )
     )
 )
@@ -1121,7 +1281,11 @@
   (lambda arg-list
     (let ((c (apply -cpu-read arg-list)))
       (if c
-	  (current-cpu-add! c))
+	  (begin
+	    (current-cpu-add! c)
+	    (mode-set-word-modes! (cpu-word-bitsize c))
+	    (hw-update-word-modes!)
+	    ))
       c))
 )
 
@@ -1149,6 +1313,13 @@
 )
 
 (define (mach-number obj) (mach-enum obj))
+
+(define (machs-for-cpu cpu)
+  (let ((cpu-name (obj:name cpu)))
+    (find (lambda (mach)
+	    (eq? (obj:name (mach-cpu mach)) cpu-name))
+	  (current-mach-list)))
+)
 
 ; Parse a machine entry.
 ; The result is a <mach> object or #f if the mach isn't to be kept.
@@ -1239,12 +1410,17 @@
 
 ; Size of a word in bits.
 ; All selected cpu families must have same value or error.
-; FIXME: Only user is opcodes.scm and we don't want this restriction there.
+; Ergo, don't use this if multiple word-bitsize values are expected.
+; E.g. opcodes support for architectures with both 32 and 64 variants.
 
 (define (state-word-bitsize)
-  (let ((wb (map cpu-word-bitsize (current-cpu-list))))
-    ; FIXME: ensure all have same value.
-    (car wb))
+  (let* ((wb-list (map cpu-word-bitsize (current-cpu-list)))
+	 (result (car wb-list)))
+    (for-each (lambda (wb)
+		(if (!= result wb)
+		    (error "multiple word-bitsize values" wb-list)))
+	      wb-list)
+    result)
 )
 
 ; Return maximum word bitsize.
@@ -1359,6 +1535,9 @@
 ; Simulator style apps don't want to include the alias insns.
 
 (define (arch-analyze-insns! arch include-aliases? analyze-semantics?)
+  ; Catch apps that haven't set word sizes yet.
+  (mode-ensure-word-sizes-defined)
+
   (if (or (not (arch-insns-analyzed? arch))
 	  (not (eq? analyze-semantics? (arch-semantics-analyzed? arch)))
 	  (not (eq? include-aliases? (arch-aliases-analyzed? arch))))

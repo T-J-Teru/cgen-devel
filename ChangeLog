@@ -1,3 +1,2165 @@
+2009-06-20  Doug Evans  <dje@sebabeach.org>
+
+	* configure.in: Update version to 1.1.
+	* configure: Regenerate.
+	* read.scm (-CGEN-VERSION): Update to 1.1.0.
+
+2009-06-20  Masaki Muranaka  <monaka@monami-software.com>
+	    Doug Evans  <dje@sebabeach.org>
+
+	* desc-cpu.scm (cgen-desc.h): Tweak logit message for consistency.
+	(cgen-desc.c): Ditto.
+	* sid-cpu.scm (cgen-desc.h, cgen-cpu.h, cgen-defs.h): Ditto.
+	(cgen-write.cxx, cgen-semantics.cxx, cgen-sem-switch.cxx): Ditto.
+	* sid-decode.scm (cgen-decode.h, cgen-decode.cxx): Ditto.
+	* sid-model.scm (cgen-model.cxx, cgen-model.h): Ditto.
+	* sim-arch.scm (cgen-arch.h, cgen-arch.c): Ditto.
+	(cgen-cpuall.h, cgen-ops.c): Ditto.
+	* sim-cpu.scm (cgen-cpu.h, cgen-defs.h, cgen-cpu.c): Ditto.
+	(cgen-read.c, cgen-write.c, cgen-semantics.c): Ditto.
+	(cgen-sem-switch.c): Ditto.
+	* sim-decode.scm (cgen-decode.h, cgen-decode.c): Ditto.
+	* sim-model.c (cgen-model.c): Ditto.
+
+2009-06-18  Doug Evans  <dje@sebabeach.org>
+
+	* gen-all-doc: Add fr30, ip2k, iq2000, lm32, mep, mt.
+
+	* html.scm (doc-analyze!): Provide default IDOC attribute if missing.
+
+	* dev.scm (cload): Change #:arch argument to take the path to the
+	.cpu file instead of just the name of the architecture.
+	* read.scm (arch-path): Remove trailing '/'.
+	(cpu-load): Set `arch-path' to directory of .cpu file.
+	(-cgen): Don't set `arch-path' here.
+	(include): Update.
+	* doc/porting.texi: Update.
+
+2009-06-14  Doug Evans  <dje@sebabeach.org>
+
+	* gen-all-doc: Use files in ../cpu where possible.
+
+	* Makefile.am (ARCHFILE): Fix path.
+	* Makefile.in: Regenerate.
+	* html.scm: Use "pre" instead of "plaintext".
+
+	* doc/cgenint.texi: Renamed from internals.texi.  Several cleanups.
+	* doc/app.texi: Cleanup pass.
+	* doc/cgen.texi: Cleanup pass.
+	* doc/glossary.texi: Add entries for ifield, iformat, sformat, insn.
+	* doc/intro.texi: Cleanup pass.
+	* doc/mdate-sh: New file.
+	* doc/opcodes.texi: Cleanup pass.
+	* doc/pmacros.texi: Cleanup pass.
+	* doc/porting.texi: Cleanup pass.
+	* doc/rtl.texi: Cleanup pass.
+	* doc/running.texi: Cleanup pass.  Document more runtime options.
+	* doc/stamp-vti: Update.
+	* doc/version.texi: Update.
+
+	* Makefile.am (AUTOMAKE_OPTIONS): Add 1.9
+	(GUILE): Fix definition.
+	* Makefile.in: Regenerate with automake 1.9.6.
+	* aclocal.m4: Regenerate with aclocal 1.9.6.
+	* configure.in (AC_PREREQ): Set to 2.59.
+	(GENINSRC_NEVER): Define.
+	* configure: Regenerate with autoconf 2.59.
+	* doc/Makefile.am (info_TEXINFOS): Add cgenint.texi.
+	(cgen.info,cgen.dvi): Delete.
+	(cgen_TEXINFOS,cgenint_TEXINFOS): Define.
+	(noinst_TEXINFOS): Add cgenint.texi.
+	(DOCFILES): Add missing files.
+	(MAINTAINERCLEANFILES,DISTCLEANFILES): Define.
+	* doc/Makefile.in: Regenerate with automake 1.9.6.
+
+	* guile.scm: Add "." to %load-path if >= guile version 1.8.
+
+	* attr.scm: Removing trailing whitespace.
+	* cgen-intrinsics.scm: Ditto.
+	* cgen-sim.scm: Ditto.
+	* cos.scm: Ditto.
+	* enum.scm: Ditto.
+	* guile.scm: Ditto.
+	* sim.scm: Ditto.
+
+2009-05-28  DJ Delorie  <dj@redhat.com>
+
+	* cpu/mep.opc (parse_signed16_range): New.
+	(parse_unsigned16_range): New.
+	* cpu/mep-ivc2.cpu (imm16p0, simm16p0): Use them.
+
+2009-05-26  DJ Delorie  <dj@redhat.com>
+
+	* cpu/mep-ivc2.cpu (h-ccr-ivc2): Enable for C3 slots, fix
+	accumulator names.
+	(f-ivc2-ccrn-c3hi): New.
+	(f-ivc2-ccrn-c3lo): New.
+	(f-ivc2-ccrn-c3): New.
+	(ivc2c3ccrn): Use it.
+
+2009-05-22  DJ Delorie  <dj@redhat.com>
+
+	* cpu/mep.opc (mep_examine_ivc2_insns): Fix bug in ivc2 decoder.
+	(mep_config_map): Regenerate.
+
+	* cpu/mep-ivc2.cpu (h-ccr-ivc2): Add generic names as well as
+	ivc2-specific names.
+	(simm8p20): New.
+	(cmovc): move to after field definitions, use ivc2-specific
+	register names.
+	(cpmovi_b_P0S_P1): New.
+	
+2009-05-19  DJ Delorie  <dj@redhat.com>
+
+	* cpu/mep.opc: Regenerate configuration.
+	(parse_cdisp10): Only check CPU flags, not COP flags.
+	(check_configured_mach): Likewise.
+
+2009-05-13  DJ Delorie  <dj@redhat.com>
+
+	* intrinsics.scm (insns.md): Add RTL predicates.
+	(intrinsics.h): Remove old C intrinsics.
+
+2009-04-29  DJ Delorie  <dj@redhat.com>
+
+	* mep-ivc2.cpu: New.
+	* mep-core.cpu: Regenerated.  Add support for deferred register
+	writes.
+	(SLOT): Add IVC2 slot types.
+	(sim-syscall): Rename to something more appropriate.
+	* mep-ext-cop.cpu: Regenerate.
+	* mep.opc: Regenerate.  Add "coprocessor supported" define area.
+	(print_slot_insn): New.
+	(mep_examine_ivc2_insns): New.
+	(mep_print_insn_set_ivc2_mode): New.
+	(mep_print_insn): Support IVC2 slotting.
+	
+2009-04-20  DJ Delorie  <dj@redhat.com>
+
+	* intrinsics.scm (intrinsics-analyze!): Include aliases.
+	(guess-mode): Drop COP* syntax.
+	(need-insn): Add "--syscall--" to the list.
+	(enum-type): Drop COP* syntax.
+	(intrinsics.h): Likewise.
+	(intrinsic-protos.h): Change file header to allow it to be
+	included.
+
+2009-04-17  DJ Delorie  <dj@redhat.com>
+
+	* cpu/mep-c5.cpu (f-12s20): Change to signed.
+	(lhucpm1): Limit to C5 mach.
+	(dsp0,dsp1): Rewrite as aliases so that intrinsics are generated.
+	* cpu/mep-core.cpu (extend-cdisp10): New.
+	(f-cdisp10): Change to signed, use extend-cdisp10 to sign extend.
+	
+2009-04-08  DJ Delorie  <dj@redhat.com>
+
+	* cpu/mep-c5.cpu: New.
+	* cpu/mep-core.cpu: Add C5 support.
+	* cpu/mep.opc: Likewise.
+
+2009-02-18  Pierre Muller  <muller@ics.u-strasbg.fr>
+
+	* opc-itab.scm (<>_cgen_init_opcode_table): Avoid compiler warning
+	about calling memset with a zero length.
+
+2009-02-03  DJ Delorie  <dj@redhat.com>
+
+	* cpu/mep-core.cpu: Update to new MeP configuration.
+	* cpu/mep-ext-cop.cpu: Likewise.
+	* cpu/mep.opc: Likewise.
+
+2008-12-23  Frank Ch. Eigler  <fche@redhat.com>
+
+	* sim.scm (-op-gen-queued-write): Add needed symbol->string.
+
+2008-06-17  Dave Brolley  <brolley@redhat.com>
+
+	* cpu/xstormy16.cpu (h-pc): Add a set handler.
+	(h-gr): Likewise.
+
+2007-11-13  Dave Brolley  <brolley@redhat.com>
+
+	* cgen-intrinsics.scm (load-files): Remove reference to fixup.scm.
+
+2007-11-05  Dave Brolley  <brolley@redhat.com>
+
+        * intrinsics.scm,cgen-intrinsics.scm: New application which
+	generates code to support intrinsic functions for insns in the
+	mep architecture in gcc.
+
+2007-09-21  Dave Brolley  <brolley@redhat.com>
+
+	* cpu/mep-core.cpu (rnc, rnuc, rns, rnus, rn3c, rn3uc, rn3s) 
+	(rn3us): CDATA attribute now LONG.
+	
+2007-08-21  Dave Brolley  <brolley@redhat.com>
+
+	* rtl-c.scm (const): Generate call to MAKEDI for integers larger
+	than 32 bits.
+
+2007-07-05  Nick Clifton  <nickc@redhat.com>
+
+	* utils.scm (copyright-fsf): Update copyright notice to refer to
+	the GPL version 3.
+
+2007-05-22  Nick Clifton  <nickc@redhat.com>
+
+	* doc/cgen.texi: Use @copying around the copyright notice.
+	* doc/internals.texi: Likewise.
+
+2007-02-05  Dave Brolley  <brolley@redhat.com>
+
+	* *mep*: New cpu description for Toshiba Media Processor (MeP).
+
+2007-02-05  Dave Brolley  <brolley@redhat.com>
+
+	* opc-asmdis.scm (-gen-init-asm-fn): Include CGEN_ASM_INIT_HOOK
+	in the generated code for @arch@_cgen_init_asm if it is defined.
+
+	* Contribute the following changes:
+	2005-04-05  Richard Sandiford  <rsandifo@redhat.com>
+
+	* attr.scm (<string-attribute>): New attribute class.
+	(attr-kind): Handle <string-attribute>.
+	(parse-simple-attribute): New function.
+	(<boolean-attribute> 'parse-value): Use parse-simple-attribute.
+	(<bitset-attribute> 'parse-value): Likewise.
+	(<boolean-attribute> 'parse-value): Likewise.
+	(<enum-attribute> 'parse-value): Likewise.
+	(<string-attribute> 'parse-value): New function.
+	(-attr-parse): Handle <string-attribute>.
+	(-attr-read): Likewise.
+	(<string-attribute> 'gen-value-for-defn-raw): New function.
+	(<string-attribute> 'gen-value-for-defn): New function.
+
+2006-11-07  Dave Brolley  <brolley@redhat.com>
+
+	* sid-model.scm (gen-model-unit-fn-decl): Use symbol->string where
+	necessary.
+
+2006-10-18  Dave Brolley  <brolley@redhat.com>
+
+	* Contribute the following changes:
+
+	2006-07-11  Dave Brolley  <brolley@redhat.com>
+
+	* cpu/sh64-compact.cpu (movual, movual2): New insns.
+	(movcol): New insn.
+	* cpu/sh.cpu (sh4a-nofpu-models): New pmacro.
+	* sid.scm (-op-gen-delayed-set-maybe-trace): If delay used, note the
+	hardware or memory mode which was used.
+	* sid-cpu.scm (hw-need-write-stack?): New function.
+	(-gen-hw-stream-and-destream-fns): Compute stack-regs. Use it to
+	identify hardware which uses write stacks.
+	(useful-mode-names): Renamed to write-stack-memory-mode-names.
+	Initialized to an empty list.
+	(-gen-writestacks, -gen-reset-fn, -gen-unified-write-fn): Use
+	hw-need-write-stack?.
+	* hardware.scm (used-in-delay-rtl?): New member of <hardware-base>.
+	(define-getters <hardware-base>): Define used-in-delay-rtl?.
+	(used-in-delay-rtl?): New method of <hardware-base>.
+	(hw-used-in-delay-rtl?): New function.
+
+	2006-06-20  Dave Brolley  <brolley@redhat.com>
+
+	* sid.scm (gen-attr-type): Removed.
+	* cpu/sh.cpu (SH2a-nofpu-MACH): Add sh5.
+	(SH2a-MACH): Add sh5.
+	(sh2a-nofpu-models): Add units for sh5.
+	(sh2a-fpu-models): Likewise.
+
+	2006-06-15  Dave Brolley  <brolley@redhat.com>
+
+	* cpu/sh-sim.cpu: New file.
+	* cpu/sh-sid.cpu: New file.
+	* cpu/sh64-media.cpu (dshci): Add xtiming argument and splice it in.
+	(All fields): Remap for (insn-lsb0? #f)
+	(All insns): Add timing specs.
+	* cpu/sh64-compact.cpu (dshcf,dshcop): Replace 'ignored' argument with
+	'xattrs' and .splice it in.
+	(32-BIT-INSN,SH4-GROUP,SH4A-GROUP): New insn attributes.
+	(h-frc,h-drc): Add PROFILE attribute.
+	(h-fpccr): Removed.
+	(h-vbr): New hardware.
+	(All fields): Remap for (insn-lsb0? #f)
+	(f-imm20-hi,f-imm20-lo,f-imm20): New fields.
+	(fr0,fmovm,fmovn,imm20,imm12x4,imm12x8,vbr): New operands.
+	(fpscr): Use h-fpscr.
+	(fsdm,fsdn): Use h-fsd.
+	(dshci): Add xtiming argument and splice it in.
+	(dr,xd): pmacros removed.
+	(All insns): Add timing specs, *-MACH attribibutes,
+	SH4{A}-GROUP attributes.
+	(divu,mulr,ldc-vbr,ldc-sr,ldcl-vbr,movl12,movl13,stcl-vbr): New insns.
+	* cpu/sh.cpu): Include sh-sid.cpu or sh-sim.cpu depending on whether
+	we're being processed for sim or sid.
+	(define-arch): Change insn-lsb0? for #f. Add machs sh2e, sh2a-fpu,
+	sh2a-nofpu, sh4-nofpu, sh4a-nofpu, sh4a, sh4al.
+	(define-isa compact): Add (isa-parallel-insns 2).
+	(define-isa media): Add (isa-parallel-insns 2). Add
+	(default-insn-word-bitsize 32). Change base-insn-bitsize to 32.
+	(define-mach): Add sh2e, sh2a-fpu, sh2a-nofpu, sh4-nofpu, sh4a-nofpu,
+	sh4a, sh4al
+	(SH2-MACH, SH2e-MACH, SH2a-nofpu-MACH, SH2a-MACH, SH3-MACH) 
+	(SH3e-MACH, SH4-nofpu-MACH, SH4-MACH, SH4a-nofpu-MACH, SH4a-MACH) 
+	(SH4al-MACH, SH5-MACH): New pmacros.
+	(common-units, common-fp-units, sh2a-nofpu-units, sh2a-fpu-units) 
+	(sh4-nofpu-units, sh4-common-fp-units, sh5-media-units) 
+	(sh5-media-fp-units, common-model, common-model-with-fp) 
+	(sh3-model, sh3e-model): New pmacros.
+	(define-model sh2): New model.
+	(define-model sh2e): New model.
+	(define-model sh3): New model.
+	(define-model sh3e): New model.
+	(define-model sh2a-nofpu): New model.
+	(define-model sh2a-fpu): New model.
+	(define-model sh4-nofpu): New model.
+	(define-model sh4): New model.
+	(define-model sh4a-nofpu): New model.
+	(define-model sh4a): New model.
+	(define-model sh4al): New model.
+	(define-model sh5-media): New model.
+	(define-model sh5): Add all units.
+	(all-models, sh2e-models, sh2a-nofpu-models, sh2a-fpu-models) 
+	(sh3-models, sh3e-models, sh4-nofpu-models, sh4-models) 
+	(sh5-media-models, shad-models, fsqrt-models): New pmacros.
+	(h-pc): Add PROFILE attribute.
+	(h-fr): Likewise.
+	(h-tr): Likewise.
+	(h-gr,h-grc): Likewise.
+	(h-cr): Set h-sr in setter.
+	(h-frbit): Get/Set h-fpscr.
+	(h-szbit,h-prbit): Likewise.
+	(h-fp): Add PROFILE attribute. Now indexed by even indices 0-62.
+	Add getter and setter.
+	(h-fc): Add PROFILE attribute. Now indexed by quad indices 0-60.
+	Adjust getter and setter.
+	(h-fmtx): Add PROFILE attribute. Now indexed by 0, 16, 32 and 48.
+	Adjust getter and setter.
+	(h-dr): Add PROFILE attribute. Now indexed by even indices 0-62.
+	(h-fsd,h-fmov): New hardware.
+
+2006-07-24  Ralk Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* doc/app.texi, doc/internals.texi, doc/intro.texi,
+	doc/notes.texi, doc/porting.texi, doc/running.texi,
+	doc/sim.texi: Fix some typos.
+
+2006-07-14  Dave Brolley  <brolley@redhat.com>
+
+	* sid.scm (-op-gen-delayed-set-maybe-trace): If delay used, note the
+	hardware or memory mode which was used.
+	* sid-cpu.scm (hw-need-write-stack?): New function.
+	(-gen-hw-stream-and-destream-fns): Compute stack-regs. Use it to
+	identify hardware which uses write stacks.
+	(useful-mode-names): Renamed to write-stack-memory-mode-names.
+	Initialized to an empty list.
+	(-gen-writestacks, -gen-reset-fn, -gen-unified-write-fn): Use
+	hw-need-write-stack?.
+	* hardware.scm (used-in-delay-rtl?): New member of <hardware-base>.
+	(define-getters <hardware-base>): Define used-in-delay-rtl?.
+	(used-in-delay-rtl?): New method of <hardware-base>.
+	(hw-used-in-delay-rtl?): New function.
+
+2006-06-20  Dave Brolley  <brolley@redhat.com>
+
+	* sid.scm (gen-attr-type): Removed.
+
+2006-05-10  Dave Brolley  <brolley@redhat.com>
+
+	* read.scm (cmd-if): Provide the correct argument to reader-error. Add
+	support for (if (application-is? <appname>) (...) (...)).
+	(-cgen): Add trailing "/" to arch-path.
+	* utils.scm (dirname): Removed. dirname is a primitive function.
+
+2006-05-09  Dave Brolley  <brolley@redhat.com>
+
+	* utils-sim.scm (-gen-decode-insn-entry): Generated code should shift
+	'entire_insn' not 'base_insn'.
+	* sid-model.scm (-gen-model-class-decls): Handle the case where insn-timing
+	is null.
+	* sim.scm (-gen-arch-model-decls): Likewise.
+	* sid-cpu.scm (-gen-scache-semantic-fn): Generate code to set
+	abuf->written if profiling.
+	(-gen-hw-stream-and-destream-fns): Use symbol->string instead of
+	object->string om the mode.
+	(-hw-gen-write-stack-decl): Likewise.
+	* read.scm (include): Use arch-path as file location.
+	(arch-path): Define it with a default setting.
+	(-cgen): Update arch-path when "-a" option is specified.
+	* utils.scm (dirname): New function.
+
+2006-05-05  Steve Ellcey  <sje@cup.hp.com>
+
+	* configure.in: Remove AC_ARG_PROGRAM.
+	* configure: Regenerate with autoconf 2.59.
+
+2006-03-14  Hans-Peter Nilsson  <hp@axis.com>
+
+	* dev.scm (cload) <SID-SIMULATOR>: New case, duplicated from
+	SIMULATOR.
+
+2006-03-03 Shrirang Khisti <shrirangk@kpitcummins.com)
+
+	* cpu/xc16x.opc (parse_hash): Return NULL if the input was parsed
+	or an error message otherwise.
+	(parse_dot, parse_pof, parse_pag, parse_sof, parse_seg): Likewise.
+	Fix up comments to correctly describe the functions.
+
+2006-02-17  Shrirang Khisti  <shrirangk@kpitcummins.com>
+            Anil Paranjape   <anilp1@kpitcummins.com>
+            Shilin Shakti    <shilins@kpitcummins.com>
+
+	* cpu/xc16x.cpu: New file containing complete CGEN specific XC16X
+	CPU description.
+	* cpu/xc16x.opc: New file containing supporting XC16C routines.
+
+2006-02-10  Nick Clifton  <nickc@redhat.com>
+
+	* cpu/iq2000.opc (parse_hi16): Truncate shifted value to 16 bits.
+
+2005-12-28  Nathan Sidwell  <nathan@codesourcery.com>
+
+	* sid-cpu.scm (-gen-hw-stream-and-destream-fns): Stringize mode
+	for concatenation.
+	(-hw-gen-write-stack-decl): Likewise.
+
+2005-12-05  Hans-Peter Nilsson  <hp@axis.com>
+
+	* utils-sim.scm (-gen-decode-insn-entry): Correct last change for
+	non-(adata-integral-insn? CURRENT-ARCH) case.
+
+2005-10-28  Dave Brolley  <brolley@redhat.com>
+
+	Contribute the following changes:
+	2005-09-19  Dave Brolley  <brolley@redhat.com>
+
+	* attr.scm (gen-value-for-defn-raw): New methods.
+	(gen-value-for-defn): Don't test for 'SID-SIMULATOR. Call
+	gen-value-for-defn-raw.
+	* sid.scm (gen-obj-attr-sid-defn): Call gen-value-for-defn-raw.
+
+	2002-12-13  Dave Brolley  <brolley@redhat.com>
+
+	* utils-cgen.scm (gen-attr-type): Moved from sid.scm.
+	(-gen-attr-accessors): New function.
+	(gen-obj-attr-defn): Update terminating initializer.
+	(gen-obj-attr-end-defn): New function.
+	* sid.scm (gen-attr-type): Moved to utils-cgen.scm.
+	* sid-cpu.scm (cgen-desc.h): Generate code to include
+	"opcode/cgen-bitset.h"
+	* intrinsics.scm (kept-insn-isas): Correct the extraction of the isa
+	name.
+	* desc.scm ('gen-defn): Update terminating initializer.
+	* desc-cpu.scm (gen-ifld-decls): Call -gen-attr-accessors. Update
+	terminatinig initializer.
+	(gen-hw-decls): Ditto.
+	(gen-operand-decls): Ditto.
+	(gen-insn-decls): Ditto.
+	(-gen-hash-defines): Generate code to include "opcde/cgen-bitset.h"
+	(gen-insn-table): Update terminating initializer.
+	(-gen-cpu-open): Update generation of @arch@_cgen_rebuild_tables,
+	@arch@_cgen_cpu_open, @arch@_cgen_cpu_close.
+	* attr.scm (charmask-bytes): New function.
+	(bitset-attr->charmask): New function.
+	(<bitset-attribute>): Handle isa-attributes specially. Also handle
+	differences for SID-SIMULATOR.
+	(<integer-attribute>): Handle differences for SID-SIMULATOR.
+	(<enum-attribute>): Ditto.
+
+2005-10-26  Kazuhiro Inaoka <inaoka.kazuhiro@renesas.com>
+
+	* cpu/m32r.opc (parse_hi16): Do not assume a 32-bit host word size.
+
+2005-10-24  DJ Delorie  <dj@redhat.com>
+
+	* operand.scm (-anyof-merge-syntax): Print a more useful error
+	message.
+
+2005-10-19  Nick Clifton  <nickc@redhat.com>
+
+	* cpu/m32r.opc (parse_slo16): Fix bad application of previous
+	patch.
+
+2005-10-18  Andreas Schwab  <schwab@suse.de>
+
+	* cpu/m32r.opc (parse_slo16): Better version of previous patch.
+
+2005-10-14  Kazuhiro Inaoka <inaoka.kazuhiro@renesas.com>
+
+	* cpu/m32r.opc (parse_slo16): Do not assume a 32-bit host word
+	size.
+
+2005-08-02  Dave Brolley  <brolley@redhat.com>
+
+	* rtl-c.scm (s-unop): Don't dereference
+	CGEN_CPU_FPU (current_cpu)->ops->xxxxx in the generated code.
+	(s-binop, s-convop, s-cmpop): Likewise.
+
+2005-07-29  Dave Brolley  <brolley@redhat.com>
+
+	* sid-cpu.scm (-gen-scache-semantic-fn): Generate a declation of 'written'
+	if with-profile or with-parallel-write.
+	(cgen-semantics.cxx): Make the @prefix@ namespace available if with-parallel.
+	* operand.scm (op:new-mode): Convert (obj:name op) to a string for
+	string-append.
+
+2005-07-15  Alan Modra  <amodra@bigpond.net.au>
+
+	* cpu/fr30.opc (print_register_list): Correct format strings.
+	* cpu/ip2k.opc: Likewise.
+
+2005-07-05  Nick Clifton  <nickc@redhat.com>
+
+	* cpu/iq2000.opc (parse_lo16, parse_mlo16): Make value parameter
+	unsigned in order to avoid compile time warnings about sign
+	conflicts.
+
+2005-07-01  Nick Clifton  <nickc@redhat.com>
+
+	* desc-cpu.scm: Update to ISO C90 function declaration style.
+	* opc-asmdis.scm: Likewise.
+	* opc-ibld.scm: Likewise.
+	* opc-itab.scm: Likewise.
+	* cpu/fr30.opc: Likewise.
+	* cpu/i960.opc: Likewise.
+	* cpu/ip2k.opc: Likewise.
+	* cpu/iq2000.opc: Likewise.
+	* cpu/m32r.opc: Likewise.
+	* cpu/openrisc.opc: Likewise.
+	* cpu/sh.opc: Likewise.
+	* cpu/sparc.opc: Likewise.
+	* cpu/xstormy16.opc: Likewise.
+
+2005-06-15  Dave Brolley  <brolley@redhat.com>
+
+	* sid-cpu.scm (-gen-hw-stream-and-destream-fns): New function.
+	(cgen-cpu.h): Call it.
+
+	Contributed on behalf of Graydon Hoare
+	2001-06-05  graydon hoare  <graydon@redhat.com>
+
+	* utils.scm (foldl): Define.
+	(foldr): Define.
+	(filter): Define.
+	(union): Define.
+	(intersection): Simplify.
+	* sid.scm : Set APPLICATION to SID-SIMULATOR.
+	(-op-gen-delayed-set-maybe-trace): Define.
+	(<operand> 'gen-set-{quiet,trace}): Delegate to
+	op-gen-delayed-set-quiet etc. Note: this is still a little tangled
+	up and needs cleaning.
+	(-with-parallel?): Hardwire with-parallel to #t.
+	(<operand> 'cxmake-get): Replace with lookahead-aware code
+	* sid-decode.scm: Remove per-insn writeback fns.
+	(-gen-idesc-decls): Redefine sem_fn type.
+	* sid-cpu.scm (gen-write-stack-structure): Replace parexec stuff
+	with write stack stuff.
+	(cgen-write.cxx): Replace per-insn writebacks with single write
+	stack writeback. Add write stack reset function.
+	(-gen-scache-semantic-fn insn): Replace parexec stuff with write
+	stack stuff.
+	* rtl-c.scm (xop): Clone operand into delayed operand if #:delayed
+	estate attribute set.
+	(delay): Set #:delayed attribute to calculated delay, update
+	maximum delay of cpu, check (delay ...) usage.
+	* operand.scm (<operand>): Add delayed slot to <operand>.
+	* mach.scm (<cpu>): Add max-delay slot to <cpu>.
+	* dev.scm (load-sid): Set APPLICATION to SID-SIMULATOR.
+	* doc/rtl.texi (Expressions): Add section on (delay ...).
+
+2005-06-13  Jim Blandy  <jimb@redhat.com>
+
+	* pmacros.scm (-pmacro-upcase, -pmacro-downcase): Handle symbols
+	as well as strings.
+
+2005-06-07  Zack Weinberg  <zack@codesourcery.com>
+
+	* doc/porting.texi: Change all mention of md_apply_fix3 and
+	gas_cgen_md_apply_fix3 to md_apply_fix and gas_cgen_md_apply_fix
+	respectively.
+
+2005-05-18  Dave Brolley  <brolley@redhat.com>
+
+	* utils-sim.scm (-gen-decode-default-entry): New function.
+	(-gen-decode-insn-entry): Now takes 'invalid-insn' argument. Generate
+	code to check that all opcodes bits match.
+	(-gen-decoder-switch): Use -gen-decode-default-entry.
+
+2005-05-16  Jim Blandy  <jimb@redhat.com>
+
+	* sid.scm (gen-ifetch): Require BITSIZE to be exactly the size
+	fetched by one of our GETIMEM* methods.
+	* utils-gen.scm (-extract-chunk-specs): Always fetch full
+	base-insn-sized chunks.
+
+2005-05-10  Nick Clifton  <nickc@redhat.com>
+
+	* Update the address and phone number of the FSF organization in
+	the GPL notices in the following files:
+	COPYING.CGEN, utils.scm, cpu/iq2000m.cpu, cpu/openrisc.cpu,
+	cpu/powerpc.cpu, slib/random.scm
+
+2005-05-06  Jim Blandy  <jimb@redhat.com>
+
+	* pprint.scm, cos-pprint.scm: Add documentation.
+
+	* pprint.scm (pprint): Don't wipe out elide-table after each call.
+
+	* pprint.scm, cos-pprint.scm: New files.
+
+2005-04-04  Nick Clifton  <nickc@redhat.com>
+
+	* opcodes.scm (-gen-parse-address): Initialise value to zero to
+	avoid a compile time warning.
+
+2005-03-18  Nick Clifton  <nickc@redhat.com>
+
+	* cpu/ip2k.opc (parse_lit8): Change wording of error message to
+	"percent-operand" from "%operand" as the latter confuses xgettext
+	into thinking that it is a C printf formating directive, which
+	prevents proper translation.
+
+2005-02-23  Nick Clifton  <nickc@redhat.com>
+
+	* opcodes.scm (gen-parse-number): Add a cast to the desired
+	pointer signed'ness in order to prevent compile time warnings.
+	* cpu/ip2k.opc: Fixed compile time warnings about differing
+	signed'ness of pointers passed to functions.
+	* cpu/iq2000.opc: Likewise.
+	* cpu/m32r.opc: Likewise.
+	* cpu/openrisc.opc: Likewise.
+	* cpu/xstormy16.opc: Likewise.
+
+2005-02-22  Alan Modra  <amodra@bigpond.net.au>
+
+	* desc-cpu.scm (gen-ifld-decls): Move cgen_ifld_table from here..
+	(cgen-desc.h): ..to here, after opcode/cgen.h include.
+
+2005-02-16  Dave Brolley  <brolley@redhat.com>
+
+	* utils.scm: Update copyright years.
+	* utils-gen.scm (gen-ifld-extract): Pass base-length to -gen-ifld-extract-base.
+	* sid.scm (gen-ifetch): Handle the case where bitsize == 24.
+	* operand.scm (-derived-operand-parse): Move logit message from level 1
+	to level 2.
+
+2005-02-15  Nick Clifton  <nickc@redhat.com>
+
+	* opc-itab.scm (-gen-ifmt-table-1): Add an ATTRIBUTE_UNUSED to
+	prevent compile time warning messages.
+	* opc-opinst.scm (-gen-operand-instance-table): Likewise.
+	* utils-gen.scm (attr-int-gen-defn): Likewise.
+	(attr-gen-defn): Likewise.
+	* cpu/ip2k.opc (parse_addr16_p): Remove unused function.
+	(print_dollarhex16): Remove unused function.
+
+2005-02-15  Jim Blandy  <jimb@redhat.com>
+
+	* guile.scm (cgen-call-with-debugging): Doc fix.
+
+	Make backtraces work more reliably.
+	* guile.scm: Set up debugging parameters, and enable debugging and
+	source positions while loading.
+	(cgen-call-with-debugging, cgen-debugging-stack-start): New
+	functions.
+	* read.scm: Don't set debugging parameters here.
+	(catch-with-backtrace): Function deleted.
+	(-cgen): Simply note the presence or absence of the -b option.
+	Pass the flag to cgen-call-with-debugging, so debugging is turned
+	off here if the user didn't request it, for faster computation.
+	(cgen): Call cgen-debugging-stack-start here, instead of
+	catch-with-backtrace.
+
+	* Makefile.am (GUILE): Explicitly load guile.scm here, and leave a
+	trailing -s.
+	(desc, html, opcodes, sim-arch, sim-cpu, gas-test, sim-test):
+	Don't write out the trailing -s here.
+	* Makefile.in: Regenerated.
+	* cgen-doc.scm, cgen-gas.scm, cgen-stest.scm): Don't load
+	fixup.scm here; let the caller decide which Scheme's customization
+	file to preload.
+	* dev.scm: Load guile.scm, not fixup.scm.
+	* fixup.scm: Deleted; contents have all moved to guile.scm.
+	* README: Doc fix.
+
+	* guile.scm (debug-write): New function.
+
+2005-02-14  Jim Blandy  <jimb@redhat.com>
+
+	* pmacros.scm (pmacros-init!): For .eval macros, use eval1 as the
+	transformer procedure, not eval.  Transformer procedures take one
+	argument.
+
+2005-02-11  Nick Clifton  <nickc@redhat.com>
+
+	* cpu/iq2000.opc (parse_jtargq10): Change type of valuep argument
+	to 'bfd_vma *' in order avoid compile time warning message.
+
+2005-02-09  Jim Blandy  <jimb@redhat.com>
+
+	* cgen-sim.scm (load-files): Don't load fixup.scm.  (See
+	corresponding change in the sim/common directory.)
+
+2005-02-07  Jim Blandy  <jimb@redhat.com>
+
+	* cgen-opc.scm: Don't load fixup.scm here.  (See corresponding
+	changes in the opcodes directory.)
+
+	* guile.scm: New file, containing Guile-specific definitions and
+	adaptations.  This is loaded by the app-specific shell scripts.
+	Initially identical to fixup.scm.
+	* cgen-sid.scm: Don't load fixup.scm here.
+
+	* cos.scm: Profile elm-xset! when requested, not elm-set!; the
+	latter is a macro.
+
+2005-01-27  Jim Blandy  <jimb@redhat.com>
+
+	* utils.scm (string/symbol->append): Renamed from 'concat'.
+	* opcodes.scm (gen-switch): Use new name.
+	* insn.scm (-sub-insn-make!): Same.
+	* rtl.scm (rtx-dump): Same.
+	* semantics.scm (semantic-compile): Same.
+
+2005-01-20  Jim Blandy  <jimb@redhat.com>
+
+	* opcodes.scm (gen-switch): Use concat instead of string-map.
+
+	* utils.scm (concat): New function.
+	* insn.scm (-sub-insn-make!): Use concat instead of string-map.
+	* rtl.scm (rtx-dump): Same.
+	* semantics.scm (semantic-compile): Same.
+
+2004-12-16  Jim Blandy  <jimb@redhat.com>
+
+	* utils-cgen.scm (parse-name): Don't assume that string-map can be
+	applied to symbols.  Process everything as strings, and then
+	convert to a symbol at the end.
+
+	* read.scm (debug-repl): Temporarily redirect input and output to
+	/dev/tty while we debug, so we don't interfere with whatever CGEN
+	is reading or writing.
+	* utils.scm (setter-getter-fluid-let, with-input-and-output-to):
+	New functions.
+
+2004-11-15  Michael K. Lechner <mike.lechner@gmail.com>
+
+	* cpu/iq2000.cpu: Added quotes around macro arguments so that they
+	will work with newer versions of guile.
+
+2004-10-27  Nick Clifton  <nickc@redhat.com>
+
+	* cpu/iq2000m.cpu: Import latest version from cpu/ directory.
+	* cpu/iq2000.cpu: Likewise.
+
+2004-07-21  DJ Delorie  <dj@redhat.com>
+
+	* cpu/xstormy16.cpu (movhmemgr): Use hmem8, not lmem8.
+
+2003-03-14  Frank Ch. Eigler  <fche@redhat.com>
+
+	* cpu/iq2000.opc (parse_jtargq10): Add ATTRIBUTE_UNUSED on unused args.
+	(parse_jtargq10, iq2000_cgen_isa_register, parse_mlo16): Declare.
+
+2004-03-30  Kazuhiro Inaoka  <inaoka.kazuhiro@renesas.com>
+
+	* cpu/m32r.opc (parse_hi16): Fixed shigh(0xffff8000) bug.
+
+2004-03-22  Dave Brolley  <brolley@redhat.com>
+
+	* utils.scm (copyright-fsf): Update copyright years.
+	(copyright-red-hat): Ditto.
+	* sid.scm (-op-gen-set-trace): Generate trace code before semantic
+	code.
+	(-op-gen-set-trace-parallel): Ditto.
+
+2004-02-10  Kazuhiro Inaoka  <inaoka.kazuhiro@renesas.dot.com>
+
+	* cpu/m32r.opc (my_print_insn): Fixed incorrect output when
+	disassembling codes for 0x*2 addresses.
+
+2004-01-29  Dave Brolley  <brolley@redhat.com>
+
+	* decode.scm (-opcode-slots): For short insns, generate 'opcode' with
+	zeroes in the extra bit positions and generate 'opcode-mask' with ones
+	in the extra bit positions.
+
+2003-12-15  Kazuhiro Inaoka  <inaoka.kazuhiro@renesas.com>
+
+	* cpu/m32r.cpu: Add PIPE_O attribute to "pop" instruction.
+
+2003-12-04  Alan Modra  <amodra@bigpond.net.au>
+
+	* cpu/openrisc.opc (openrisc_sign_extend_16bit): Don't rely on
+	"short" being 16 bit.
+	(parse_hi16): Likewise.  Fix type-punned pointer warnings too, and
+	internationalize error message.
+	(parse_lo16): Likewise.  Remove useless code.
+
+2003-12-03  Kazuhiro Inaoka  <inaoka.kazuhiro@renesas.com>
+
+	* cpu/m32r.cpu : Add new model m32r2.
+	Add new instructions.
+	Replace occurrances of 'Mitsubishi' with 'Renesas'.
+	Changed PIPE attr of push from O to OS.
+	Care for Little-endian of M32R.
+	* cpu/m32r.opc (CGEN_DIS_HASH, my_print_insn):
+	Care for Little-endian of M32R.
+	(parse_slo16): signed extension for value.
+
+2003-10-26  Dave Brolley  <brolley@redhat.com>
+
+	* sid-decode.scm (-gen-record-profile-args): Test trace_counter_p
+	and final_insn_count_p. Don't test WITH_PROFILE_MODEL_P.
+	(-gen-extract-fn): Call -gen-record-profile-args.
+
+2003-10-21  Dave Brolley  <brolley@redhat.com>
+
+	* sid-model.scm (-gen-model-class-decls): Generate MAX_UNITS as
+	a static const int.
+	* decode.scm (-opcode-slots): Correct typo in logit call.
+
+2003-10-09  Jim Blandy  <jimb@redhat.com>
+
+	* desc-cpu.scm (gen-hw-table-decls): Emit an 'extern' declaration
+	for @arch@_cgen_hw_table.  GDB needs to be able to find this.
+
+	* mach.scm (def-isa-attr!): hardware can have ISA attributes, too.
+
+2003-10-06  Dave Brolley  <brolley@redhat.com>
+
+	* gen-all-doc: Add fr550.
+
+2003-09-11  Doug Evans  <dje@sebabeach.org>
+
+	* Makefile.am (ARCHFILE): New var.
+	(desc): Pass $(ARCHFILE) for -a parm, not $(ARCH).
+	(html,opcodes,sim-arch,sim-cpu,gas-test,sim-test): Ditto.
+	* Makefile.in: Regenerate.
+
+2003-09-08  Dave Brolley  <brolley@redhat.com>
+
+	On behalf of Doug Evans <dje@sebabeach.org>
+	Pass in paths to input files, instead of assuming they live in
+	$srcdir/cpu.  Plus misc. option processing cleanup.
+	* cgen-doc.scm (doc-arguments): Make options strings not symbols.
+	Add pre-process pass to all options.
+	* cgen-gas.scm (gas-arguments): Ditto.
+	* cgen-sid.scm (sim-arguments): Ditto.
+	* cgen-sim.scm (sim-arguments): Ditto.
+	* cgen-stest.scm (stest-arguments): Ditto.
+	* cgen-opc.scm (opc-arguments): Ditto.  New argument -OPC.
+	(-opc-file-path): New global.
+	(opc-file-path): New fn.
+	* opcodes.scm (read-cpu.opc): Replace srcdir,cpu args with opc-file.
+	All callers updated.
+	(gen-extra-cpu.h,gen-extra-cpu.c,gen-extra-opc.h,gen-extra-opc.c,
+	gen-extra-asm.c,gen-extra-dis.c,gen-extra-ibld.h,gen-extra-ibld.c):
+	Replace srcdir arg with opc-file.  All callers updated.
+	* read.scm (-opt-spec-update): Delete.
+	(opt-get-first-pass,opt-get-second-pass): New fns.
+	(-cgen): Process application-specific arguments in two passes.
+
+2003-08-29  Dave Brolley  <brolley@redhat.com>
+
+	* cpu/frv.cpu: Removed.
+	* cpu/frv.opc: Removed.
+
+2003-08-21  Nick Clifton  <nickc@redhat.com>
+
+	* cpu/frv.cpu (mbtoh): Replace input parameter to
+	u-media-dual-expand and u-media-dual-btoh with output parameter.
+	(cmbtoh): Add profiling hack.
+
+2003-08-19  Michael Snyder  <msnyder@redhat.com>
+
+	* cpu/frv.cpu: Fix typo, Frintkeven -> FRintkeven
+
+2003-08-07  Michael Meissner  <gnu@the-meissners.org>
+
+	* opc-opinst.scm (-gen-operand-instance-table): Initialize all of
+	the elements for the END record of CGEN_OPINST, silencing warnings.
+
+2003-07-15  Doug Evans  <dje@sebabeach.org>
+
+	Add guile 1.6.4 support.
+	- empty list must be quoted
+	- string functions have stricter type checking
+	- eval now takes a second argument
+	- symbol-bound? is deprecated
+	* attr.scm (-attr-parse): Use stringsym-append to build errtxt.
+	(bitset-attr->list): Ensure arg to string-cut is a string.
+	(attr-parse): Ensure args to string-ref and string-drop1 are strings.
+	(<enum-attribute>,gen-value-for-defn): Fetch string name of self.
+	* cos.scm (-class-list): Must quote empty list.
+	(-class-parent-classes,-class-compute-class-desc): Ditto.
+	(class-make,make,object-reset!): Ditto.
+	(method-make-make!): Call eval1 instead of eval.
+	(method-make-forward!,method-make-virtual-forward!): Ditto.
+	* decode.scm (subdtable-add): Use stringsym-append instead of
+	string-append.
+	(-gen-exprtable-name): Fetch string name of exprtable-entry-insn.
+	(-build-decode-table-entry): Fetch string name of insn.
+	* desc-cpu.scm (-gen-isa-table-defns): Fetch string name of isa.
+	(-gen-mach-table-defns): Ditto for mach.
+	(gen-ifld-defns): Ditto for ifld.
+	(gen-hw-table-defns): Ditto for hw.
+	(gen-operand-table): Ditto for op.
+	(gen-insn-table-entry): Ditto for insn.
+	* desc.scm (gen-attr-table-defn): Ditto for attr.
+	(<keyword>,gen-defn): Don't pass symbols to string-append.
+	* enum.scm (parse-enum-vals): Use symbolstr-append instead of
+	symbol-append.
+	(enum-vals-upcase): Use symbol-upcase to build result.
+	(-enum-parse): Use stringsym-append to build errtxt.
+	* fixup.scm (*guile-major-version*,*guile-minor-version*): New globals.
+	(eval1): New function.
+	(symbol-bound?): Provide own version if >= guile 1.6.
+	* hardware.scm (define-keyword): Use string-append instead of
+	symbol-append.
+	* html.scm (gen-html-header,gen-table-of-contents,gen-arch-intro,
+	cgen.html,cgen-insn.html): Convert current-arch-name to a string
+	before using.
+	(gen-list-entry): Handle either symbol or string `name' arg.
+	(gen-obj-doc-header): Fetch string name of `o' arg.
+	(define-cpu-intro): Ditto for cpu.
+	(gen-mach-intro): Ditto for mach.
+	(gen-model-intro): Ditto for model.
+	(gen-isa-intro): Ditto for isa.
+	(gen-machine-doc-1): Ditto for isa.
+	(gen-reg-doc-1): Convert mach to string first.
+	(gen-insn-doc-1): Ditto.  Convert model/unit names to strings first.
+	(gen-insn-doc-list): Fetch string name of mach.  Convert insn name
+	to string first.
+	(gen-insn-categories): Fetch string name of mach.  Convert
+	enum-val-name to string first.
+	(gen-insn-docs): Fetch string name of mach.
+	* ifield.scm (ifld-ilk): Result is a string.
+	* iformat.scm (-ifmt-search-key): Convert attr value to string first.
+	Fetch string name of ifld.
+	(-sfmt-search-key): Similarily for ifld and op.
+	* insn.scm (syntax-make): Fetch string name of syntax element.
+	* mach.scm (-cpu-parse): Use stringsym-append to build errtxt.
+	* minsn.scm (minsn-make-alias): Fetch string name of minsn.
+	* mode.scm (mode:c-type): Result is a string.
+	(mode:enum): Fetch string name of mode.
+	(-mode-parse): Use stringsym-append to build errtxt.
+	* model.scm (model:enum): Fetch string name of model.
+	(-model-parse): Use stringsym-append to build errtxt.
+	(parse-insn-timing): Must quote empty list.
+	* opc-itab.scm (-gen-minsn-table-entry): Fetch string name of minsn.
+	(-gen-minsn-opcode-entry): Ditto.
+	* opcodes.scm (<operand>,gen-function-name): `what' arg is a symbol,
+	convert to string.
+	(read-cpu.opc): Convert current-arch-name to a string before using.
+	* operand.scm (<operand>,gen-pretty-name): Ensure `name' is a string.
+	(<derived-operand>): Must quote empty list.
+	(op-sort): Simplify, call alpha-sort-obj-list to do sort.
+	* pgmr-tools.scm (pgmr-pretty-print-insn-value): Fetch string name
+	of ifld.
+	* pmacros.scm (-pmacro-build-lambda): Use eval1 instead of eval.
+	(-pmacro-sym): Must convert symbols to strings before passing to
+	string-append.
+	(-pmacro-str): Ditto.
+	(pmacros-init!): Use eval1 instead of eval.
+	* read.scm (keep-mach-atlist?): Simplify, use bitset-attr->list.
+	(keep-isa-atlist?): Ditto.
+	(cmd-if): Use eval1 instead of eval.
+	* rtl-c.scm (<c-expr>,get-name): Fetch string name of self.
+	(-rtl-c-get): Fetch string name of src.
+	(s-unop): Ditto for mode.
+	(s-binop,s-binop-with-bit,s-shop,s-convop,s-cmpop): Ditto.
+	(-gen-par-temp-defns,subword): Ditto.
+	(join): Use stringsym-append instead of string-append.
+	* rtl-traverse.scm (rtx-option?): Convert option to string first.
+	(rtx-traverse-debug): Fetch string name of rtx-obj.
+	* rtl.scm (def-rtx-node): Use eval1 instead of eval.
+	(def-rtx-syntax-node,def-rtx-operand-node,def-rtx-macro-node): Ditto.
+	(rtx-pretty-name): Result is a string.
+	(-rtx-hw-name): Use symbolstr-append instead of symbol-append.
+	* semantics.scm (semantic-compile): Simplify, use alpha-sort-obj-list.
+	* sid-cpu.scm (cgen-write.cxx): Convert current-arch-name to a string
+	before using.
+	(-gen-sfrag-case): Fetch string name of user.
+	* sid-model.scm (unit:enum): Fetch string name of unit.
+	* sid.scm (<hw-memory>,cxmake-get): Fetch string name of mode.
+	(<hw-memory>,gen-set-quiet): Ditto.
+	(gen-mode-defs): Ditto.
+	(sim-finish!): Convert current-arch-name to a string before using.
+	* sim-cpu.scm (-gen-scache-semantic-fn): Fetch string name of insn.
+	(-gen-no-scache-semantic-fn): Ditto.
+	(cgen-defs.h): Fetch string name of isa.
+	(cgen-read.c): Convert current-arch-name to a string before using.
+	(cgen-write.c): Ditto.
+	* sim-model.scm (unit:enum): Fetch string name of unit.
+	(gen-model-fn-decls): Use stringsym-append instead of string-append.
+	(-gen-model-timing-table): Fetch string name of model.
+	(-gen-mach-model-table): Ditto.
+	(-gen-mach-defns): Fetch string name of mach.
+	* sim.scm (gen-reg-access-defn): Fetch string name of hw.
+	(<hw-memory>,cxmake-get): Fetch string name of mode.
+	(<hw-memory>,gen-set-quiet): Ditto.
+	(gen-mode-defs): Ditto.
+	(sim-finish!): Must quote empty list.
+	* utils-cgen.scm (<ident>): Must quote empty list.
+	(obj:str-name): New fn.
+	(parse-comment): Result is a string.
+	(parse-symbol): Result is a symbol.
+	(parse-string): Result is a string.
+	(keyword-list?): Convert arg to string before calling string-ref.
+	(keyword-list->arg-list): Ditto.
+	(gen-attr-name): Convert attr-name to string first.
+	(alpha-sort-obj-list): Use symbol<? instead of string<?.
+	* utils-gen.scm (attr-gen-decl): Fetch string name of attr.
+	(gen-define-ifmt-ifields): Ditto for fld.
+	* utils.scm (gen-c-symbol): Ensure str is a string before calling
+	map-over-string.
+	(gen-file-name): Ditto.
+	(symbol-downcase,symbol-upcase,symbol<?): New fns.
+	(stringsym-append,symbolstr-append,->string,->symbol): New fns.
+	(reduce): Call eval1 instead of eval.
+	* cpu/m32r.cpu (addi): Don't use `#.'.
+
+	* gen-all-sim: Fix some typos.
+
+2003-07-08  Doug Evans  <dje@sebabeach.org>
+
+	* gen-all-doc: Ensure run from cgen src dir.
+	* gen-all-opcodes: Build in ./tmp-opcodes.  Don't delete dir when done.
+	* gen-all-sid: Similarily, in ./tmp-sid.
+	* gen-all-sim: Similarily, in ./tmp-sim.
+
+2003-06-20  Doug Evans  <dje@sebabeach.org>
+
+	* gen-all-sim: Add fr30,sh64 support.  Only generate m32r by default.
+
+2003-06-19  Doug Evans  <dje@sebabeach.org>
+
+	* mach.scm (-ifld-already-defined?): New proc.
+	(current-ifld-add!): Use it.
+	(-op-already-defined?): New proc.
+	(current-op-add!): Use it.
+	(-insn-already-defined?): New proc.
+	(current-insn-add!): Use it.
+	(-minsn-already-defined?): New proc.
+	(current-minsn-add!): Use it.
+	(obj-isa-list): New proc.
+	(isa-supports?): Use it.
+
+2003-06-10  Doug Evans  <dje@sebabeach.org>
+
+	* insn.scm (insn-builtin!): RELAX renamed to RELAXABLE.
+	* cpu/m32r.cpu (all insns): Ditto.
+
+	* mach.scm (current-*-add!): Disallow redefinition.  Make result
+	"unspecified".
+
+	* gen-all-doc: Split arm and frv docs up a bit.
+
+	* cpu/arm.cpu: Add IDOC attribute.
+	* cpu/frv.cpu: Ditto.
+	* cpu/i960.cpu: Ditto.
+	* cpu/openrisc.cpu: Ditto.
+	* cpu/xstormy16.cpu: Ditto.
+	* cpu/m32r.cpu: Ditto.
+	(all insns): Explicitly specify IDOC attribute.
+
+	* Makefile.am (MACH,ISAS,INSN_FILE_NAME): New vars.
+	(desc,opcodes,sim-arch,sim-cpu,gas-test,sim-test): Use MACH,ISAS.
+	(html): Use MACH,ISAS,INSN_FILE_NAME.  Generate insn.html separately.
+	* Makefile.in: Regenerate.
+	* attr.scm (<integer-attribute>:parse-value-def): Implement.
+	(-attr-read): Defer computing default value until we know the type.
+	(attr-has-attr?): Delete, move contents to <attr-list>:has-attr?.
+	(<attr-list>:attr-present?): New method.
+	(atlist-attr-present?,obj-attr-present?): New fns.
+	(obj-has-attr-value?,obj-has-attr-value-no-default?): New fns.
+	(attr-builtin!): New insn attr IDOC.
+	* cgen-doc.scm (doc-arguments): New args -I,-N.
+	* enum.scm (parse-enum-vals): New arg errtxt, all callers updated.
+	Support comment as fourth element of enum value.
+	(enum-val-name,enum-val-value,enum-val-attrs,enum-val-comment): New fns.
+	* html.scm (gen-html-header): New arg kind, all callers updated.
+	(gen-table-of-contents): New arg insn-file, all callers updated.
+	(gen-list-entry,gen-doc-header): New fn.
+	(get-operands): Delete.
+	(gen-iformat-table): Rewrite.
+	(gen-insn-doc-1): Print constant-folded and trimmed semantics.
+	(gen-insn-doc-list): New args name, comment, insns.  All callers updated.
+	(get-insn-properties,guess-insn-idoc-attr!): New fn.
+	(insn-sets-pc?,insn-refs-mem?,insn-uses-fpu?): New fns.
+	(get-insns-for-category,gen-categories-insn-lists): New fns.
+	(gen-insn-docs): Simplify each insn's semantics first.
+	Print insn tables sorted by IDOC categories.
+	(*insn-html-file-name*): New global.
+	(cgen-insn.html): New fn.
+	(cgen-all): Update.
+	* insn.scm (<insn>): Create a setter for the `tmp' member.
+	* semantics.scm (insn-build-known-values): Renamed from
+	-build-known-values.  All callers updated.
+
+	* rtl.scm: Move traveral/evaluation support to ...
+	* rtl-traverse.scm: New file.
+	* read.scm: Maybe-load rtl-traverse.scm.
+
+	* rtl.scm (-rtx-valid-types): Add SETRTX.
+
+	* rtx-funcs.scm (nop,parallel): Fix mode.
+
+	* utils.scm (eqv-lookup-index): New fn.
+	(assq-lookup-index): Renamed from lookup-index.  All callers updated.
+
+	* dev.scm (load-doc): Set APPLICATION.
+
+2003-06-10  Dave Brolley  <brolley@redhat.com>
+
+	* sid-cpu.scm: Generate #include of config.h into @prefix@-sem.cxx.
+	* sid-decode.scm: Generate #include of config.h into
+	@prefix@-decode.cxx.
+	* sid-model.scm: Generate #include of config.h into @prefix@-model.cxx.
+
+2003-06-07  Doug Evans  <dje@sebabeach.org>
+
+	* gen-all-sid: New file.
+	* gen-all-opcodes: New file.
+
+2003-06-05  Nick Clifton  <nickc@redhat.com>
+
+	* cpu/frv.cpu (FRintieven): New operand.  An even-numbered only
+	version of the FRinti operand.
+	(FRintjeven): Likewise for FRintj.
+	(FRintkeven): Likewise for FRintk.
+	(mdcutssi, media-dual-word-rotate-r-r, mqsaths,
+	media-quad-arith-sat-semantics, media-quad-arith-sat,
+	conditional-media-quad-arith-sat, mdunpackh,
+	media-quad-multiply-semantics, media-quad-multiply,
+	conditional-media-quad-multiply, media-quad-complex-i,
+	media-quad-multiply-acc-semantics, media-quad-multiply-acc,
+	conditional-media-quad-multiply-acc, munpackh,
+	media-quad-multiply-cross-acc-semantics, mdpackh,
+	media-quad-multiply-cross-acc, mbtoh-semantics,
+	media-quad-cross-multiply-cross-acc-semantics,
+	media-quad-cross-multiply-cross-acc, mbtoh, mhtob-semantics,
+	media-quad-cross-multiply-acc-semantics, cmbtoh,
+	media-quad-cross-multiply-acc, media-quad-complex, mhtob,
+	media-expand-halfword-to-double-semantics, mexpdhd, cmexpdhd,
+	cmhtob): Use new operands.
+	* cpu/frv.opc (CGEN_VERBOSE_ASSEMBLER_ERRORS): Define.
+	(parse_even_register): New function.
+
+2003-06-04  Doug Evans  <dje@sebabeach.org>
+
+	Better handling of 64 bit and mixed 32/64 bit architectures.
+	* hardware.scm (hw-update-word-modes!): New fn.
+	* mach.scm (define-cpu)): Call mode-set-word-modes!,
+	hw-update-word-modes!.
+	(state-word-bitsize): Replace FIXME with requested check.
+	(arch-analyze-insns!): Call mode-ensure-word-sizes-defined.
+	* mode.scm (mode-find): Ignore INT,UINT.
+	(-mode-word-sizes-kind): New global.
+	(mode-set-word-modes!,mode-set-identical-word-bitsizes!,
+	mode-set-biggest-word-bitsizes!,mode-ensure-word-sizes-defined): New fns.
+	(mode-init!): Initialize -mode-word-sizes-kind.  Move initialization
+	of mode-list to ...
+	(mode-builtin!): ... here.  Initialize WI/UWI/AI/IAI to something
+	unusable, correct values set later.
+	(mode-finish!): Remove cruft.
+	* html.scm (doc-init!): Call mode-set-biggest-word-bitsizes!.
+	* opcodes.scm (opcodes-init!): Ditto.
+	* rtx-funcs.scm (annul): Fix mode of pc.
+	* cpu/ia64.cpu: Remove cruft that sets word modes.
+	* cpu/xstormy16.cpu (define-cpu): Set word-bitsize.
+
+2003-06-03  Nick Clifton  <nickc@redhat.com>
+
+	* cpu/frv.cpu (media-dual-word-rotate-r-r): Use a signed 6-bit
+	immediate value not unsigned.
+
+2003-05-21  J"orn Rennecke <joern.rennecke@superh.com>
+
+	* cpu/sh.cpu: Amend comments to refer to SuperH.
+	* cpu/sh64-compact.cpu: Change comment to refer to SuperH.
+	* cpu/sh64-media.cpu: Likewise.
+	(Saturation): Update manual reference.
+
+2003-05-15  Doug Evans  <dje@sebabeach.org>
+
+	* Makefile.am (srcroot): New var.
+	(html): New rule.
+	* Makefile.in: Regenerate.
+	* cgen-doc.scm: New file.
+	* html.scm: New file.
+	* gen-all-doc: New file.
+	* dev.scm (cload): Handle DOC application.
+	(load-doc): New fn.
+	* machs.scm (machs-for-cpu): New fn.
+	* model.scm (models-for-cpu): New fn.
+	* utils.scm (gen-c-copyright): Renamed from gen-copyright.
+	All uses updated.
+	(iota): Rewrite to be identical to pmacro version.  All uses updated.
+	* utils-cgen.scm (alpha-sort-obj-list): New fn.
+
+	* utils-sim.scm (-gen-decoder-switch): Back out patch of 2003-01-09.
+	(-gen-decode-bits): Instead put in better fix here.
+
+	* cpu/i960.cpu (index): Rename to indx.  All uses updated.
+
+2003-05-01  DJ Delorie  <dj@redhat.com>
+
+	* cpu/xstormy16.cpu (alignfix-mem): Correct logic for unaligned
+	word accesses.
+	(set-alignfix-mem): Likewise.
+
+2003-04-16  Dave Brolley  <brolley@redhat.com>
+
+	* doc/rtl.texi (Iiming): Correct example to use 'model-name'.
+	* utils.scm (copyright-fsf): Update generate copyright years.
+	(copyright-cygnus): Ditto.
+	* sid.scm (-op-gen-set-trace): Generate code to fill in bitmask of modified
+	operands.
+	(-gen-arch-model-decls): Don't generate unit enum declaration or MAX_UNITS
+	here.
+	(<operand>'gen-profile-code): New parameter 'when'.
+	(<iunit>'gen-profile-code): Ditto.
+	(<insn>'gen-profile-code): Ditto.
+	(<unit>'gen-profile-code): Ditto. Only generate 'referenced' and
+	'insn_reference' for the 'after' function.
+	* model.scm (unit:enum): Moved to sim-model.scm.
+	* sim-model.scm (unit:enum): Moved from model.scm.
+	* sid-decode.scm (-gen-scache-decls): Generate the 'written' field.
+	* cgen-sid.scm (sim-arguments): Document the generation of model.h.
+	* sid-model.scm (unit:enum): New version for sid.
+	(gen-model-class-name): New function.
+	(gen-model-unit-fn-decl): New function.
+	(gen-model-fn-decls): Call gen-model-unit-fn-decl.
+	(gen-model-unit-fn-name): New parameter 'when'.
+	(-gen-model-insn-fn-name): Ditto.
+	(-gen-model-insn-qualified-fn-name): New function.
+	(-gen-model-insn-fn-decl): New function.
+	(-gen-model-insn-fn-decls): New function.
+	(-gen-model-insn-fn): New parameter 'when'. Call
+	-gen-model-insn-qualified-fn-name.
+	(-gen-model-insn-fns): Generate the constructor for the model. Generate
+	functions for modelling insn before and after execution.
+	(-gen-model-class-decls): New function.
+	(" (gen-model-class-name model) "): New function.
+	(gen-model-classes): New function.
+	(-gen-insn-timing): Generate functions for modelling insn before and after
+	execution.
+	(-gen-insn-unit-timing): Generate class-qualified names.
+	(-gen-model-timing-table): Ditto.
+	(cgen-model.cxx): Generate #include for @cpu@.h. Omit generation of code
+	not needed (yet) by sid.
+	(cgen-model.h): New function.
+
+2003-04-15  Rohit Kumar Srivastava <rohits@kpitcummins.com>
+
+	* cpu/sh.cpu: Replace occurrances of 'Hitachi' with 'Renesas'.
+	* cpu/sh64-compact.cpu: Likewise.
+	* cpu/sh64-media.cpu: Likewise.
+
+2003-03-21  DJ Delorie  <dj@redhat.com>
+
+	* cpu/xstormy16.cpu (basic-psw): New argument ws (wordsize),
+	which indicates if the sign flag is set from bit 15 or 7.
+	Adjust all callers.
+	(set-psw): New argument ws, propogate it.
+	(set-psw-nowrite): Likewise.
+	(set-mem-psw): Likewise.
+	(set-psw-carry): Likewise.  Use temporaries to prevent
+	prematurely overwriting needed inputs.
+	(set-psw-rrotate17): Fix logic.
+	(shrgrgr): Preserve carry for zero-bit shifts.
+	(shrgrimm): Likewise.
+	(shlgrgr): Likewise.
+	(shlgrimm): Likewise.
+	(asrgrgr): Likewise.
+	(asrgrimm): Likewise.
+	(reset): New.
+
+2003-03-12  Frank Ch. Eigler  <fche@redhat.com>
+
+	* sid.scm: Set APPLICATION to SID-SIMULATOR.
+
+2002-03-05  DJ Delorie  <dj@redhat.com>
+
+	* cpu/xstormy16.cpu (set-psw-add): Use temporaries to prevent
+	prematurely overwriting needed inputs.
+	(set-psw-sub): Likewise.
+
+Fri Feb 21 19:48:19 2003  J"orn Rennecke <joern.rennecke@superh.com>
+
+	* cpu/sh64-media.cpu (make-mextr): Fix setting of count.
+
+2003-02-18  DJ Delorie  <dj@redhat.com>
+
+	* xstormy16.cpu (set-mem-alignfix-psw): Remove.
+	(movlmemimm): Just mask the address.
+	(movhmemimm): Likewise.
+	(movlmemgr): Likewise.
+	(movhmemgr): Likewise.
+	(set-psw): Always set the psw last.
+	(set-psw-carry): Likewise.
+	(set-psw-add): Likewise.
+	(set-psw-sub): Likewise.
+
+	* xstormy16.cpu (set-psw-rrotate17): New.  Choose the correct set
+	of 16 patterns from the set-psw-rotate17 function.
+	(movgrigr, movgripostincgr, movgripredecgr, movgriigr,
+	movgriipostincgr, movgriipredecgr): Set psw correctly.
+	(movfgrigr, movfgripostincgr, movfgripredecgr, movfgriigr,
+	movfgriipostincgr, movfgriipredecgr): Fix semantics.
+	(rrcgrgr, rrcgrimm4): Use new set-psw-rrotate17 function.
+
+2003-02-11  Dave Brolley  <brolley@redhat.com>
+
+	* desc-cpu.scm (gen-ifld-defns): Add all ifields to the
+	@arch@_cgen-ifld_table.
+	(gen-maybe-multi-ifld): Use the ifield enumerators to index the
+	@arch@_cgen-ifld_table.
+
+2003-02-03  Frank Ch. Eigler  <fche@redhat.com>
+
+	* sid-cpu.scm (-gen-sfrag-engine-fn): Generate more hygienic C++.
+
+2003-01-09  Graydon Hoare  <graydon@redhat.com>
+
+	* utils-sim.scm (-gen-decoder-switch): Fix edge condition for
+	empty ISAs.
+
+2003-01-07  Graydon Hoare  <graydon@redhat.com>
+
+	* utils-gen.scm (attr-int-gen-defn): Define.
+
+2002-12-21  Doug Evans  <dje@sebabeach.org>
+
+	* ifield.scm (-ifield-parse): Rewrite <bitrange> computation.
+	(-get-ifld-word-offset,-get-ifld-word-length): New fns.
+
+	* dev.scm (cload): Update location of .cpu files.
+
+2002-12-19  Doug Evans  <dje@sebabeach.org>
+
+	* utils-sim.scm (gen-profile-sym): New fn.
+	(<operand>,sbuf-profile-sym): New method.
+	(<operand>,sbuf-profile-elm): Use it.
+	* sim.scm (<operand>,gen-record-profile): Use sbuf-profile-sym instead
+	of hardcoding symbol name.
+	(<operand>,gen-profile-code): Ditto.
+	(<unit>,gen-profile-code): Use gen-profile-sym instead of hardcoding
+	symbol name.
+
+	* mode.scm (mode-sem-mode): New fn.
+	* operand.scm (op:new-mode): Update. mode-name.
+	(op-natural-mode?) New fn.
+	* rtl.scm (hw): Set hw-name,mode-name.
+
+	Back out sim*.scm changes of 2001-04-02  Ben Elliston  <bje@redhat.com>
+	Instead do:
+	* sim-decode.scm (-gen-decode-insn-globals): Use @PREFIX@_INSN__MAX
+	as size of IDESC-TABLE-VAR.
+	(@prefix@_init_idesc_table): Ditto.
+	* sim-model.scm (-gen-mach-defns): Ditto.
+	* sim.scm (gen-cpu-insn-enum-decl): Rename last elm from max to -max.
+
+	* utils-sim.scm (-gen-decode-insn-entry): Fix some spacing in output.
+
+	* insn.scm (-parse-insn-format-symbol): Improve error message.
+	(-parse-insn-format): Ditto.
+
+	* gen-all-sim: New script.
+
+2002-12-16  DJ Delorie  <dj@delorie.com>
+
+	* cpu/xstormy16.opc (parse_immediate16): Add prototype.
+
+2002-12-16  Andrew MacLeod  <amacleod@redhat.com>
+
+	* cpu/xstormy16.cpu (imm16): Call handler immediate16.
+	* cpu/xstormy16.opc (parse_small_immediate): Return on '@'.
+	(parse_immediate16): Handle immediate16 values, which now include
+	@hi(label) and @lo(label)
+
+2002-12-03  Alan Modra  <amodra@bigpond.net.au>
+
+	* desc-cpu.scm (gen-maybe-multi-ifld): Remove superfluous parens.
+	Add braces and cast for union field.
+	(gen-multi-ifield-nodes): Add braces and cast for union field.
+	(cgen_operand_table): Similarly fix sentinel.
+	(cgen_cpu_close): Constify "insns".  Formatting.
+	(cgen-desc.c): Include xregex.h.
+	* cpu/ip2k.opc (ip2k_cgen_insn_supported): Move to opc.c section.
+	Prototype.
+	<opc.c>: Include safe-ctype.h.
+	(ip2k_asm_hash): Use ISSPACE and TOLOWER.
+	(PARSE_FUNC_DECL): Declare.  Use to prototype parse_fr, parse_addr16,
+	parse_addr16_p, parse_addr16_cjp, parse_lit8 and parse_bit3.
+	(parse_fr): Constify "old_strp".  Correct type of "tempvalue".
+	Don't test it for >= 0.  Use ISSPACE rather than isspace.  Formatting.
+	(parse_addr16): Correct type of "value".  Formatting.
+	(parse_addr16_p): Likewise.
+	(parse_addr16_cjp): Likewise.
+	(parse_lit8): Likewise.
+	(parse_bit3): Formatting.
+	(PRINT_FUNC_DECL): Define.  Use to prototype print_fr, print_dollarhex,
+	print_dollarhex8, print_dollarhex16, print_dollarhex_addr16h,
+	print_dollarhex_addr16l, print_dollarhex_p, print_dollarhex_cj and
+	print_decimal.
+	(print_fr): Add ATTRIBUTE_UNUSED on unused args.  Formatting.
+	(print_dollarhex): Add ATTRIBUTE_UNUSED on unused args.
+	(print_dollarhex8): Likewise.
+	(print_dollarhex16): Likewise.
+	(print_dollarhex_addr16h): Likewise.
+	(print_dollarhex_addr16l): Likewise.
+	(print_dollarhex_p): Likewise.
+	(print_dollarhex_cj): Likewise.
+	(print_decimal): Likewise.
+	* cpu/xstormy16.opc (parse_mem8): Use ISALNUM rather than isalnum.
+
+2002-11-30  Hans-Peter Nilsson  <hp@axis.com>
+
+	* doc/rtl.texi (Model variants): Mention current limitations for
+	unit inputs and outputs.
+	(Hardware elements) <attribute PROFILE>: Be slightly more
+	verbose.
+	(Instructions) <timing>: input/output overrides have a direction
+	operand.
+
+2002-11-25  DJ Delorie  <dj@redhat.com>
+
+	* xstormy16.cpu (sdiv, divlh, sdivlh): Fix sdivlh/divlh encodings.
+
+2002-11-21  Jeff Johnston  <jjohnstn@redhat.com>
+
+	* cpu/iq10.cpu: New file.
+	* cpu/iq2000.cpu: Likewise.
+	* cpu/iq2000.opc: Likewise.
+	* cpu/iq2000m.cpu: Likewise.
+
+2002-11-19  DJ Delorie  <dj@redhat.com>
+
+	* cpu/xstormy16.cpu (sdiv, divlh, sdivlh): New.
+
+2002-11-05  Frank Ch. Eigler  <fche@redhat.com>
+
+	* dev.scm: Call getenv with a string, not a symbol.
+
+2002-10-08  Doug Evans  <dje@transmeta.com>
+	    Hans-Peter Nilsson  <hp@axis.com>
+
+	* types.scm (bitrange-overlap?): Handle lsb0?.
+
+2002-09-07  Frank Ch. Eigler  <fche@redhat.com>
+
+	From Robert Cragie <rcc@jennic.com>:
+	* cpu/arm7.cpu (ldm*-sw*, stm*-sw*): New instructions.
+
+2002-07-17  Frank Ch. Eigler  <fche@redhat.com>
+	    Ben Elliston  <bje@redhat.com>
+	    John Healy  <jhealy@redhat.com>
+	    Jeff Johnston  <jjohnstn@redhat.com>
+	    Alan Lehotsky  <alehotsky@redhat.com>
+	    Ubicom Inc. <SupportDesk@ubicom.com>
+
+	* cpu/ip2k.cpu: New file.
+	* cpu/ip2k.opc: Likewise.
+
+2002-07-01  Hans-Peter Nilsson  <hp@axis.com>
+
+	* utils-gen.scm (-gen-extract-word): Handle lsb0?.
+
+2002-06-25  J"orn Rennecke <joern.rennecke@superh.com>
+
+	* cpu/sh64-compact.cpu (movw5): Use Correct operand field for reg.
+	* cpu/sh64-media.cpu (-ldhi-byte, -ldhi-word, -ldhi-long): New macros.
+	(-ldlo-byte, -ldlo-word, -ldlo-long): Likewise.
+	(-sthi-word, -sthi-long -stlo-byte, -stlo-word, -stlo-long): Likewise.
+	(ldhil, ldhiq, ldlol, ldloq, stlol, stloq): Implement.
+	(mshfhib, mshfhil, mshfhiw, mshflob, mshflol, mshflow): Fix indices.
+	(-sthi-byte): If there is a single byte to store, store it at
+	proper address.
+	(sthil, sthiq): Fix big-endian behaviour.
+	(mcnvslw, mcnvswb, mcnvswub, mmacfxwl, mmacnfx.wl): Fix indices.
+	(mmulfxl, mmulfxw, mmulfxrpw, mmulhiwl, mmullowl): Likewise.
+	(saturate): Use Dimode to check if saturation operation is required.
+	(usaturate): Likewise.
+	(mpermw): Fix mask.
+	(-maddsl, -maddsub): Compute to-be-saturated value in wider mode.
+	(-maddsw, mmacfxwl, mmacnfx.wl, -mshaldsl, -mshaldsw): Likewise.
+	(-mshardl, -mshardw, -msubsl, -msubsub, -msubsw): Likewise.
+	(msadubq): Fix subword index in second operand of first subtraction.
+
+2002-06-20  Hans-Peter Nilsson  <hp@axis.com>
+
+	* sim-cpu.scm (gen-semantic-code): Prepend with setup-semantics
+	code.
+
+2002-06-18  Dave Brolley  <brolley@redhat.com>
+
+	* cpu/frv.cpu: New cpu description.
+	* cpu/frv.opc: New cpu support code.
+
+2002-05-21  Dave Brolley  <brolley@redhat.com>
+
+	* decode.scm (-opcode-slots): Don't consider bits beyond the
+	length of the insn.
+
+2002-05-17  Johan Rydberg  <jrydberg@rtmk.org>
+
+	* cpu/powerpc.cpu: New file.
+
+2002-05-01  Graydon Hoare  <graydon@redhat.com>
+
+	* desc-cpu.scm (@arch@_cgen_cpu_close): Fix memory leaks.
+
+2002-03-20  Hans-Peter Nilsson  <hp@axis.com>
+
+	* doc/pmacros.texi (Symbol concatenation): Mention that .sym
+	results are expanded recursively.
+
+2002-03-19  Hans-Peter Nilsson  <hp@axis.com>
+
+	* pmacros.scm (-pmacro-expand,scan): If result is a symbol,
+	call scan-symbol on it, to enable recursive macro-expansion.
+
+2002-01-25  Frank Ch. Eigler  <fche@redhat.com>
+
+	* sid-cpu.scm (-gen-hardware-types): Generate single hardware union
+	for multiple-isa configurations.
+	* sid-decode.scm (-gen-decode-fn): Tolerate empty insn list.
+
+2002-02-04  Ben Elliston  <bje@redhat.com>
+
+	* cpu/sh.cpu, cpu/sh.opc: New files.
+	* cpu/sh64-comact.cpu, cpu/sh64-media.cpu: Likewise.
+
+2002-01-29  Hans-Peter Nilsson  <hp@axis.com>
+
+	* doc/rtl.texi: Fix typo: define-attr, not define-attribute.
+	(Enumerated constants): Mention that an ifield must not specify a
+	multi-ifield.
+	(Instruction operands): Ditto for index.
+	(Expressions) <parallel>: Remove misplaced mention of local
+	variables.
+	<if>: Mention that mode must be specified and non-VOID when the
+	result is used.
+
+2002-01-28  Hans-Peter Nilsson  <hp@axis.com>
+
+	* doc/porting.texi: When referring to *.opc, mention they are in
+	the cpu subdir.  Call top-level directory toplevel, not devo.
+	Close string in define-normal-insn example.
+
+	* doc/pmacros.texi: Fix .substr typo to .substring.
+	Mention that .sym expansions are not further expanded.
+
+2002-01-22  Graydon Hoare  <graydon@redhat.com>
+
+	* desc-cpu.scm (ifld-number-cache): Add.
+	(ifld-number): Add.
+	(gen-maybe-multi-ifld-of-op): Add.
+	(gen-maybe-multi-ifld): Add.
+	(gen-multi-ifield-nodes): Add.
+	(cgen-desc.c): Add call to gen-multi-ifield-nodes.
+
+2002-01-10  matthew green  <mrg@redhat.com>
+
+	* cpu/xstormy16.cpu (gr-Rbj-names): Rename this ...
+	(gr-Rb-names): ... to this.
+	(h-Rb): New hardware piece.
+	(h-Rbj): Use gr-Rb-names.
+	(Rb): Use h-Rb.
+	(holdx): New instruction.
+
+2002-01-07  Ben Elliston  <bje@redhat.com>
+
+	* utils.scm (package-cygnus-simulators): Rename from this ..
+	(package-red-hat-simulators): .. to this.
+	* opcodes.scm (option-set!): Use package-red-hat-simulators.
+	* sid-cpu.scm (cgen-desc.h): Likewise.
+	(cgen-cpu.h): Likewise.
+	(cgen-defs.h): Likewise.
+	(cgen-write.cxx): Likewise.
+	(cgen-semantics.cxx): Likewise.
+	(cgen-sem-switch.cxx): Likewise.
+	* sid-decode.scm (cgen-decode.h): Likewise.
+	(cgen-decode.cxx): Likewise.
+	* sid-model.scm (cgen-model.cxx): Likewise.
+	* sid.scm (option-set!): Likewise.
+	* sim.scm (option-set!): Likewise.
+
+2002-01-07  Ben Elliston  <bje@redhat.com>
+
+	* utils.scm (copyright-fsf): Add 2002.
+	(copyright-cygnus): Rename to copyright-red-hat.
+	(copyright-red-hat): Add 2002.
+	(CURRENT-COPYRIGHT): Update comment.
+	* opcodes.scm (option-set!): Update callers.
+	* sid-model.scm (cgen-model.cxx): Likewise.
+	* sid-cpu.scm: Likewise.
+	* sid-decode.scm: Likewise.
+	* sid.scm (option-set!): Handle "redhat" as an option for
+	"copyright"; use copyright-red-hat.
+	* sim.scm (option-set!): Likewise.
+
+2002-01-03  Dave Brolley  <brolley@redhat.com>
+
+	* decode.scm (-distinguishing-bit-population): Compute num-insns, the
+	number of insns in the list.  Update the population count function to
+	identify and prioritize 3 catgories of useful bits.
+	(-population-top-few): Don't consider bits with a population count of
+	zero.
+	(-build-decode-table-entry): Don't call
+	filter-harmlessly-ambiguous-insns.  Filter out non-specialized and
+	identical insns at the next tree level.
+	* insn.scm (filter-harmlessly-ambiguous-insns): Note in a comment that
+	this function is no longer used.
+	(filter-non-specialized-ambiguous-insns): New function.
+	(filter-identical-ambiguous-insns): New function.
+	(find-identical-insn): New function.
+	(filter-harmlessly-ambiguous-insns): Removed.
+
+2001-11-26  Geoffrey Keating  <geoffk@redhat.com>
+	    matthew green  <mrg@redhat.com>
+	    Frank Ch. Eigler  <fche@redhat.com>
+	    Nick Clifton  <nickc@cambridge.redhat.com>
+
+	* cpu/xstormy16.cpu: New file.
+	* cpu/xstormy16.opc: New file.
+
+2001-11-26  Frank Ch. Eigler  <fche@redhat.com>
+
+	* doc/sim.texi, rtl.texi, porting.texi: Correct texinfo markup typos.
+
+2001-11-14  Dave Brolley  <brolley@redhat.com>
+
+	* utils-gen.scm (-gen-extract-word): Correct computation of the length
+	of the field being extracted.
+
+2001-10-29  Johan Rydberg  <johan@rydberg.com>
+
+	* doc/rtl.texi (Expressions): Document the (error ..), (sqrt ..),
+	(cos ...) and (sin ..) rtx.
+
+2001-10-13  Nick Clifton  <nickc@cambridge.redhat.com>
+
+	* desc-cpu.scm: Do not include ctype.h in generated desc
+	files.  They will inherit safe-ctype.h instead.
+
+2001-10-08  Nick Clifton  <nickc@cambridge.redhat.com>
+
+	* desc-cpu.scm: Add missing function prototypes (for generated
+	C files).  Fix compile time warning messages about unused
+	parameters (for generated C files).
+	* opc-asmdis.scm: The same.
+	* opc-ibld.c: The same.
+	* opc-itab.scm: The same.
+	* cpu/fr30.opc: The same.
+	* cpu/m32r.opc: The same.
+	* cpu/openrisc.opc: The same.
+
+2001-09-17  graydon hoare  <graydon@redhat.com>
+
+	* insn.scm (syntax-break-out): Correct logic in handling escaped
+	syntax characters.
+
+2001-07-12  Jeff Johnston  <jjohnstn@redhat.com>
+
+	* opc-itab.scm (@arch@_cgen_init_opcode_table): Unconditionally
+	call @arch@_cgen_build_insn_regex now that regex support is in
+	libiberty.
+
+2001-07-12  Frank Ch. Eigler  <fche@redhat.com>
+
+	* insn.scm (filter-harmlessly-ambiguous-insns): Fix msg typo.
+	(mask-superset?): Look for strict supersets to allow rejection of
+	duplicate insns.
+
+2001-07-11  Frank Ch. Eigler  <fche@redhat.com>
+
+	* sid-cpu.scm (-gen-mach-params): New proc to emit ...CHUNK_BITSIZE...
+	(cgen-desc.h): Call it.
+	* sid-decode.scm (-gen-decode-fn): Use base-insn-bitsize as
+	decode-size.
+	* utils-sim.scm (-gen-decode-insn-entry): For SID only, prepare
+	entire_insn for extraction, if it's shorter than base-insn-bitsize.
+
+2001-07-11  Frank Ch. Eigler  <fche@redhat.com>
+
+	* desc-cpu.scm (-gen-mach-table-defns): Emit fourth field: the
+	mach->cpu insn-chunk-bitsize.
+	(-gen-cpu-open): In @arch@_cgen_rebuild_tables, process above new
+	field toward CGEN_CPU_TABLE->insn_chunk_bitsize.
+	* mach.scm (<cpu>): New field insn-chunk-bitsize.
+	(-cpu-parse, -cpu-read): Parse/initialize it.
+	* doc/rtl.texi (define-cpu): Document it.
+
+2001-07-09  Geoffrey Keating  <geoffk@redhat.com>
+
+	* ifield.scm (<ifield> 'field-start): Don't look at word-len.
+
+2001-07-06  Ben Elliston  <bje@redhat.com>
+
+	* opcodes.scm (read-cpu.opc): Read .opc files from subdir/cpu.
+
+2001-07-05  Ben Elliston  <bje@redhat.com>
+
+	* README: Update.
+
+	* read.scm (include): Include files from srcdir/cpu.
+	(-cgen): Likewise for loading .cpu files.
+	* sid.scm (sim-finish!): Read .sim files from srcdir/cpu.
+	* *.cpu: Move all cpu descriptions into cpu subdirectory.
+	* *.opc: Likewise.
+	* simplify.inc: Likewise.
+
+2001-07-04  Ben Elliston  <bje@redhat.com>
+
+	* read.scm (include): Log "Including file" message at level 1,
+	rather than outputting it with (display).
+	(cpu-load): Log "Loading cpu description" and "Processing cpu
+	description" messages at levels 1 and 2, respectively, rather than
+	using (display).
+
+2001-06-14  Geoffrey Keating  <geoffk@redhat.com>
+
+	* desc.scm (<keyword> 'gen-defn): Add extra zero into
+	CGEN_KEYWORD_ENTRY initializers.
+
+	* gas-test.scm (gen-gas-test): Create 8 testcases, not just 5.
+	(<operand> 'test-data): Involve both the index and the hardware
+	in testcase generation.
+	(<hw-indx> 'test-data): Generate test data from the underlying
+	object.
+	(<ifield> 'test-data): Generate test data by computing bit
+	patterns for the field, then decoding them.
+	(<hw-address> 'test-data): Allow for new calling convention.
+	(<hw-iaddress> 'test-data): Likewise.
+	(<keyword> 'test-data): Convert index values into keywords.
+	(<hw-asm> 'test-data): Convert index values into integer strings.
+
+	* gas-test.scm (cgen-build.sh): Escape '.' as well.
+
+2001-06-01  Frank Ch. Eigler  <fche@redhat.com>
+
+	* rtl.scm (hw): Encode hw access mode into <operand> name, since this
+	is required for multi-mode hw types (memory).
+
+2001-05-11  Ben Elliston  <bje@redhat.com>
+
+	* gas-test.scm (cgen-build.sh, gentest): Escape $ with a backslash
+	when generating allinsn.d from objdump output. Without it, the
+	testsuite will treat $ as the regular expression for end of line.
+
+2001-05-09  Ben Elliston  <bje@redhat.com>
+
+	* doc/porting.texi (Doing a GAS port): Replace `cgen_opcode_open'
+	with `cgen_cpu_open'; documentation had become out of date.
+	* doc/rtl.texi (Instruction operands): Likewise.
+
+2001-05-07  Frank Ch. Eigler  <fche@redhat.com>
+
+	* iformat.scm (compute-insn-base-mask-length): Rewrite to tolerate
+	various-base-length instruction sets.
+
+2001-04-02  Ben Elliston  <bje@redhat.com>
+
+	* sid-cpu.scm (-last-insn): New function.
+	(-gen-sem-switch-engine): Loop through idesc while less than or
+	equal to the last instruction enum, not less than the MAX enum.
+	(-gen-sfrag-engine-fn): Clean up frag_label_table initialisation.
+	* sid-decode.scm (-gen-decode-insn-globals): Define the idesc
+	table's size to be the last instruction enum plus one, not
+	@PREFIX@_INSN_MAX.
+	* sid.scm (gen-cpu-insn-enum-decl): Do not append a dummy `max'
+	instruction onto the instruction list.
+
+	* sim-decode.scm (@prefix@_init_idesc_table): Compute tabsize
+	using the size of the table and its elements.
+	(-gen-decode-insn-globals): Define the idesc table's size to be
+	the last instruction enum plus one, not @PREFIX@_INSN_MAX.
+	* sim-model.scm (-gen-mach-defns): Define CPU_MAX_INSNS as the
+	last instruction enum plus one, not @CPU@_INSN_MAX.
+
+2001-03-28  Ben Elliston  <bje@redhat.com>
+
+	* doc/version.texi (UPDATED, EDITION): Update.
+	* doc/stamp-vti: Likewise.
+
+2001-03-26  Ben Elliston  <bje@redhat.com>
+
+	* doc/credits.texi (Credits): Update.
+
+	* gas-test.scm (<keyword>,test-data): Prefix keywords by their
+	specified prefix and, if necessary, escape `$' in gas-build.sh to
+	prevent unwanted shell variable expansion.
+
+2001-03-24  Ben Elliston  <bje@redhat.com>
+
+	* gas-test.scm (<hw-asm>,test-data): Choose pseudo-random data.
+	(<keyword>,test-data): Likewise.
+	(<hw-address>,test-data): Likewise.
+	(<hw-iaddress>,test-data): Likewise.
+	(-collate-test-set): New function.
+	(build-test-set): Use it.
+	(gen-gas-test): Generate five test cases per instruction.
+	(cgen-allinsn.exp): Include "-*- Tcl -*-" in DejaGNU test file.
+
+	* read.scm: Load "slib/random" if random is not defined.
+	* slib/random.scm: New file.
+
+	* utils.scm: Remove comments about the Hobbit compiler.
+	(copyright-cygnus): Add 2001.
+	(package-cygnus-simulators): Replace "Cygnus" with "Red Hat".
+	(package-gnu-simulators): Tidy.
+
+2001-03-23  Ben Elliston  <bje@redhat.com>
+
+	* cgen-gas.scm: Inline documentation improvements.
+
+2001-03-21  Ben Elliston  <bje@redhat.com>
+
+	* opc-itab.scm (compute-syntax): Emit a parse error if an operand
+	given in a syntax string is undefined.
+
+	* opc-itab.scm (compute-syntax): Emit a parse error if an operand
+	name is empty or invalid -- eg. "$(rs)" instead of "($rs)".
+
+2001-03-20  Patrick Macdonald  <patrickm@redhat.com>
+
+	* desc-cpu.scm (@arch@_cgen_cpu_open): Correct machine calculation
+	for arg_type CGEN_CPU_OPEN_BFDMACH.
+
+2001-03-20  Ben Elliston  <bje@redhat.com>
+
+	* opc-itab.scm (-gen-insn-enum): Do not append a dummy `max'
+	instruction onto the instruction list. Define MAX_INSNS to be the
+	value of the last instruction enum plus one.
+
+2001-03-14  Nick Clifton  <nickc@redhat.com>
+
+	* utils.scm (copyright-fsf): Add 2001.  Remove (C).
+
+2001-03-05  Dave Brolley  <brolley@redhat.com>
+
+	* sim-decode.scm (-gen-extract-case): Generate declaration of "insn"
+	if the number of ifields is greater than zero.
+
+2001-03-01  Frank Ch. Eigler  <fche@redhat.com>
+
+	* sid.cpu (-op-gen-set-trace[-parallel], -create-virtual-insns!):
+	Emit LIKELY/UNLIKELY branch probability hints.
+	* sid-decode.cpu (-gen-record-args): Ditto.
+
+2001-02-02  Patrick Macdonald  <patrickm@redhat.com>
+
+	* desc-cpu.scm (-gen-hash-defines): Rename
+	CGEN_ACTUAL_MAX_SYNTAX_BYTES to CGEN_ACTUAL_MAX_SYNTAX_ELEMENTS.
+
+2001-01-26  Frank Ch. Eigler  <fche@redhat.com>
+
+	* sid-cpu.scm (gen-parallel-exec-type): Use unsigned long long for
+	writeback tracking.
+	(-gen-write-fn, -gen-sem-case, -gen-sfrag-case): Ditto.
+	* sid-decode.scm (-gen-scache-decls): Exclude writeback tracking field
+	if unnecessary.
+	* sid.scm (<operand> gen-write): Use unsigned long long expression
+	for writeback.
+	(-op-gen-set-trace, -op-gen-set-trace-parallel): Ditto.
+	(<unit> gen-profile-code): Ditto.
+
+2001-01-23  Johan Rydberg  <jrydberg@opencores.org>
+
+	* doc/rtl.texi (Expressions): Document the (index-of ...) and
+	(regno ...) rtx.
+
+2001-01-08  Frank Ch. Eigler  <fche@redhat.com>
+
+	* operand.scm (<operand> pretty-sem-name): New field.
+	(<operand> make): Initialize it from hw-name.
+	(op:set-pretty-sem-name!): New function.
+	(<operand> gen-pretty-name): Default to fetching new field.
+	* rtl.scm (hw): Copy hw-name to pretty-sem-name instead.  Restore
+	sem-name setting from -rtx-hw-name.
+
+2001-01-08  Frank Ch. Eigler  <fche@redhat.com>
+
+	* rtl.scm (hw): Copy hw-name to new operand's sem-name, to simplify
+	its subsequent gen-pretty-name.
+
+	* read.scm: Increase thread working stack limit and backtrace
+	depth limits.
+
+2001-01-08  Frank Ch. Eigler  <fche@redhat.com>
+
+	* doc/rtl.texi: Deprecate and depreciate the decode-assist construct.
+
+2001-01-06  Johan Rydberg  <jrydberg@opencores.org>
+
+	* openrisc.cpu (or32): Setup semantics for h-delay-insn to
+	current insn plus 4.
+	(h-delay-insn): New hardware register.
+	(l-jal): Uses h-delay-insn instead of pc when setting link register.
+	(l-jalr): Likewise.
+	(l-bal): Likewise.
+
+	* openrisc.opc (parse_hi16): Sign extend value.
+	(parse_lo16): Likewise.
+
+2001-01-06  Ben Elliston  <bje@redhat.com>
+
+	* utils-gen.scm (gen-sfmt-enum-decl): Use @prefix@ and @PREFIX@
+	instead of @cpu@ and @CPU@ to generically prefix symbol names.
+	* sim-cpu.scm (-gen-sem-fn-table-entry): Likewise.
+	(-gen-semantic-fn-table): Likewise.
+	(-gen-scache-semantic-fn): Likewise.
+	(-gen-no-scache-semantic-fn): Likewise.
+	(cgen-read.c): Likewise.
+	(cgen-sem-switch.c): Likewise.
+	* desc-cpu.scm (cgen-desc.c): Use @arch@, not @prefix@, since this
+	is a filename prefix.
+	* sim-decode.scm (IDESC-TABLE-VAR): Use @prefix@, et al.
+	(-gen-decode-insn-globals): Likewise.
+	(-gen-idesc-decls): Likewise.
+	(cgen-decode.h): Likewise.
+	(cgen-decode.c): Likewise.
+	* sim.scm (gen-cpu-insn-enum-decl): Likewise.
+	(gen-cpu-insn-enum): Likewise.
+	(sim-finish!): Likewise.
+
+2001-01-05  Johan Rydberg  <jrydberg@opencores.org>
+
+	* openrisc.cpu: New file.
+	* openrisc.opc: Likewise.
+
+2000-12-12  Ben Elliston  <bje@redhat.com>
+
+	* doc/rtl.texi (Expressions): Document the (delay ..) rtx.
+
+2000-12-07  Ben Elliston  <bje@redhat.com>
+
+	* sim-decode.scm (-gen-extract-case): Do not emit a definition for
+	"insn" when there are zero ifields to extract.
+
+2000-12-04  Frank Ch. Eigler  <fche@redhat.com>
+
+	* utils-sim.scm (gen-define-argbuf-macro): Handle sfmt=#f case, to be
+	used by simple/non-scache simulators.
+	* sim-cpu.scm (-gen-read-case): Call gen-define/undef-field-macro
+	regardless of with-scache?.
+	(-gen-write-case, -gen-no-scache-semantic-fn, -gen-sem-case): Ditto.
+
+2000-12-03  Ben Elliston  <bje@redhat.com>
+
+	* desc-cpu.scm (cgen-desc.h): Clarify generated filenames.
+	(cgen-desc.c): Likewise.
+
+2000-12-01  Greg McGary  <greg@mcgary.org>
+
+	* desc.scm (<keyword>,gen-defn): Prepend prefix to keyword names.
+
+2000-12-01  Ben Elliston  <bje@redhat.com>
+
+	* sim-cpu.scm (cgen-cpu.h): Only emit argbuf, scache and extract
+	definitions if run without with-multipla-isa?.
+	(cgen-defs.h): New function. Emit an ISA-specific defs file.
+	* cgen-sim.scm (sim-arguments): Accept -G option to generate defs.
+
+2000-11-24  Ben Elliston  <bje@redhat.com>
+
+	* sim-cpu.scm (-gen-hardware-struct): New function.
+	(-gen-hardware-types): If with-multiple-isa is specified, emit all
+	hardware elements wich have share one or more ISAs with the ISAs
+	being kept.
+
+	* sim.scm (-with-multiple-isa?): New symbol.
+	(with-multiple-isa?): New function.
+	(option-init!): Initialise -with-multiple-isa?.
+	(option-set!): Handle with-multiple-isa option.
+
+2000-11-21  Ben Elliston  <bje@redhat.com>
+
+	* utils.scm (copyright-fsf): Add the year 2000.
+
+2000-11-20  Frank Ch. Eigler  <fche@redhat.com>
+
+	* opc-itab.scm (-gen-ifmt-table, -gen-macro-insn-table: Remove
+	unneeded "\n\n" from F() macro definition.
+
+2000-11-15  Greg McGary  <greg@mcgary.org>
+
+	* utils-cgen.scm (gen-define-with-symcat): New function.
+	* desc-cpu.scm (gen-ifld-defns): Use it.
+	(gen-hw-table-defns): Use it.
+	(-gen-hash-defines): Use it.
+	(gen-operand-table): Use it.
+	(gen-insn-table): Use it.  Remove spurious `#undef MNEM'.
+	* opc-itab.scm (-gen-ifmt-table): Use it.
+	(-gen-insn-opcode-table): Use it.
+	(-gen-macro-insn-table): Use it.
+	* opc-opinst.scm (-gen-operand-instance-tables): Use it.
+	* sim-cpu.scm (cgen-semantics.c): Use it.
+	(cgen-sem-switch.c): Use it.
+
+2000-11-10  Frank Ch. Eigler  <fche@redhat.com>
+
+	* utils-sim.scm (-gen-decode-insn-entry): Add fn? parameter to signal
+	request to emit calls to insn extractors as functions rather than
+	branches to inline blocks.
+	(-gen-decode-expr-set-itype, -gen-decode-expr-entry): Ditto.
+	(-gen-decode-table-entry, -gen-decoder-switch, gen-decoder): Ditto.
+
+	* sim-decode.c (-gen-decode-fn): Tell (gen-decode) to emit branches
+	to extractor clauses.
+
+2000-11-10  Frank Ch. Eigler  <fche@redhat.com>
+
+	* decode.scm (-distinguishing-bit-population): Significantly
+	improve popularity heuristic.  Renamed from
+	(-mask-bit-population): Gone.
+	(-population-above-threshold): Sort new bit numbers in order of
+	popularity.
+	(-population-top-few): Allow up to three more bits to be selected
+	than requested.  Correct selection order to prefer better bits.
+	Correct bug in fewer-than-requested case.  Keep threshold as
+	floating-point.
+	(decode-best-get-bits): Pass also the insn-values.
+
+	* utils-sim.scm (-gen-decoder-switch): Add comment suggesting a
+	future optimization.
+
+	* utils.scm (message): Format nested lists better.
+
+2000-11-09  Doug Evans  <dje@casey.transmeta.com>
+
+	* dev.scm: Add srcdir to %load-path.
+
+	* rtx-funcs.scm (subword): Mode of argument can be different
+	than mode of result, so don't use OP0 to specify argument's mode.
+
+2000-11-02  Ben Elliston  <bje@redhat.com>
+
+	* doc/porting.texi (Building a GAS test suite): Document my change
+	to gas-build.sh.
+
+2000-11-01  Ben Elliston  <bje@redhat.com>
+
+	* sim-test.scm (cgen-build.sh): Include "-*- Asm -*-" in test cases.
+
+2000-10-31  Ben Elliston  <bje@redhat.com>
+
+	* gas-test.scm (cgen-build.sh): Allow the generated script to run
+	with no command line arguments if the gas build directory can be
+	determined.
+
+2000-10-26  Doug Evans  <dje@casey.transmeta.com>
+
+	* insn.scm (-parse-insn-format-symbol): Fix spelling error,
+	op-ifld -> op-ifield.
+
+2000-10-23  Frank Ch. Eigler  <fche@redhat.com>
+
+	* thumb.scm (cc-tests): Add (ISA thumb) attribute.
+
+2000-10-13  matthew green  <mrg@cygnus.com>
+
+	* utils-cgen.scm (get-ifetch): Move from here ...
+	* sim.scm (get-ifetch): ... to here.
+	* sid.scm (get-ifetch): Copy and port to c++.
+
+2000-10-06  Dave Brolley  <brolley@redhat.com>
+
+	* utils-gen.scm (-gen-ifld-extract-base): Compute start position as
+	ifld-start + ifld-word-offset.
+	(gen-ifld-extract): Check adata-integral-insn? before checking whether
+	the field is beyond the base number of bits.
+	(gen-define-ifields): Use a base-length of 32 if adata-integral-insn?.
+	(gen-extract-ifields): Ditto.
+	* gas-test.scm (gentest): Generate backslashes before '[' and ']'
+	characters in the regular expression.
+
+2000-10-02  Frank Ch. Eigler  <fche@redhat.com>
+
+	* desc-cpu.scm: (gen-operand-decls): Emit MAX_OPERANDS as a
+	preprocessor constant.
+
+2000-09-21  Frank Ch. Eigler  <fche@redhat.com>
+
+	* slib/logical.scm: New file from slib.  Provides robust bitwise
+	logical operations for large integers.
+	* read.scm: maybe-load it.
+
+2000-09-15  Frank Ch. Eigler  <fche@redhat.com>
+
+	* enum.scm (define-full-insn-enum): Filter with keep-isa predicate.
+	* ifield.scm (-ifield-parse, -multi-ifield-parse): No longer assert
+	single-isa predicate, but support keep-isa filtering.
+
+2000-09-08  Frank Ch. Eigler  <fche@redhat.com>
+
+	* rtl-c.scm (s-sequence): Handle nested c-calls in both
+	statement-expression and comma-expression contexts.
+	(s-c-call, s-c-raw-call): Add warning comment about bad assumption.
+
+2000-09-08  Frank Ch. Eigler  <fche@redhat.com>
+
+	* decode.scm (-population-top-few): Signal error gracefully if
+	decoding is about to become ambiguous.
+
+2000-09-06  Frank Ch. Eigler  <fche@redhat.com>
+
+	* doc/rtl.texi (decode-assist): Describe this field as optional.
+
+2000-09-06  Frank Ch. Eigler  <fche@redhat.com>
+
+	* utils-gen.scm (gen-multi-ifld-extract): Handle case of multi-ifield
+	with decode proc.
+
+2000-09-05  Dave Brolley  <brolley@redhat.com>
+
+	* sim.scm (sim-finish!): Honour the definition of FAST_P when calling
+	@cpu@_pbb_begin. Use 0 if FAST_P is not defined.
+
+2000-08-29  Dave Brolley  <brolley@redhat.com>
+
+	* utils-gen.scm (gen-ifld-extract): Pass total-len if
+	adata-integral-insn is true for this architecture.
+
+2000-08-24  Frank Ch. Eigler  <fche@redhat.com>
+
+	* hardware.scm (<hw-immediate> get-index-mode): Define method.
+	* operand.scm (<operand> gen-pretty-name): Tolerate no op:sem-name.
+	* rtl-c.scm (-c-rtl-get): Improve an error message.
+	* sim.scm (-op-gen-set-trace): Support <derived-operand> lvalues.
+
+2000-08-22  Frank Ch. Eigler  <fche@redhat.com>
+
+	* Makefile.in (DIST_COMMON): Regenerated.
+	* ifield.scm (<derived-ifield> needed-iflds): New method.
+	* iformat.scm (-ifmt-lookup-sfmt!): Use base ifields for
+	sfmts built from <derived-ifield>s.
+	* operand.scm (-derived-parse-encoding): Give <derived-ifield> a fixed
+	type symbol 'derived-ifield, not an unparseable string.
+	* utils-sim.scm (op-needed-iflds) Handler 'derived-ifield case.
+	(-sfmt-contents): Add tracing.
+
+	From Doug Evans <dje@transmeta.com>:
+	* sim.scm (<operand> cxmake-get): Result is a <c-expr>, not a string of
+	C code.
+
+2000-08-20  Doug Evans  <dje@casey.transmeta.com>
+
+	* rtl-c.scm (rtl-c-expr-with-estate): New fn.
+	(rtl-c-expr-parsed,rtl-c-expr): New fns.
+	(-rtl-c-get): Rename from rtl-c-get.
+	(rtl-c-get): New fn for getter logging.
+
+2000-07-28  Ben Elliston  <bje@redhat.com>
+
+	* NEWS: Update.
+
 2000-07-25  Ben Elliston  <bje@redhat.com>
 
 	* doc/credits.texi (Credits): Add Frank Eigler.
@@ -73,9 +2235,17 @@
 	* mach.scm (arch-analyze-insns!): Exclude multi-insns.
 	* sem-frags.scm (sim-sfrag-analyze-insns!): Ditto.
 	(-frag-test-data): Ditto.
+	* sid-cpu.scm (cgen-write.cxx,-gen-sem-switch): Ditto.
+	(-gen-sem-switch-engine); Ditto.
+	* sid-model.scm (-gen-model-insn-fns, -gen-model-timing-table): Ditto.
+	* sid-decode.scm (cgen-decode.h, cgen-decode.cxx): Ditto.
+	(-gen-record-args): Tolerate unbound op-ifield.
+	* sid.scm (<derived-operand> cxmake-get): New sketch implementation.
+	(-gen-arch-model-decls, scache-engine-insns, pbb-engine-insns):
+	Exclude multi-insns.
 	* sim-decode.scm (cgen-decode.h, cgen-decode.cxx): Ditto.
 	* utils-sim.scm (op-extract?): Handle derived operands.
-	
+
 	* gas-test.scm (cgen-build.sh): Quote '*' chars printed by objdump.
 	* semantics.scm (-build-operand!): Handle 'DFLT case during parsing.
 	* hardware.scm (hardware-for-mode): New function.
@@ -156,6 +2326,10 @@
 	* opcodes.scm (multi-ifield gen-extract): Correct spacing in generated
 	code.
 
+2000-05-23  Frank Ch. Eigler  <fche@redhat.com>
+
+	* sid.scm (with-any-profile?): New function clone.
+
 2000-05-19  Frank Ch. Eigler  <fche@redhat.com>
 
 	* utils-gen.scm (gen-multi-ifld-extract): Fix decode hook for sim.
@@ -174,7 +2348,6 @@
 	(syntax-make-elements): Ditto.
 	* opc-itab.scm (compute-syntax): Ditto.
 
-
 2000-05-17  Ben Elliston  <bje@redhat.com>
 
 	* gas-test.scm (cgen-build.sh): Log the correct script filename.
@@ -188,7 +2361,6 @@
 
 	* desc-cpu.scm (-gen-hash-defines): Define CGEN_ACTUAL_MAX values for
 	IFMT_OPERANDS and SYNTAX_BYTES.
-
 
 2000-05-15  Frank Ch. Eigler  <fche@redhat.com>
 
@@ -234,7 +2406,10 @@
 	(-operand-parse-setter): Ditto.
 	* utils-sim.scm (needed-iflds): Store ifield (index) in argbuf, even
 	for CACHE-ADDR operands.
-
+	* sid-decode.scm (-gen-record-args): Remove newly duplicated extract
+	trace entries.  Widen byte-wide values for printing.
+	* sid.scm (-op-gen-set-trace): Enhance result trace with op indices.
+	Widen byte-wide values for printing.  Hexify memory addresses.
 
 2000-04-23  matthew green  <mrg@redhat.com>
 
@@ -342,8 +2517,6 @@ Fri Apr 21 22:18:48 2000  Jim Wilson  <wilson@cygnus.com>
 
 2000-03-16  Frank Ch. Eigler  <fche@redhat.com>
 
-	* mipscom.cpu (break, syscall, define-trap): Make these non-cti
-	insns.
 	* sid-cpu.scm (-gen-sem-switch-engine): Adjust calling &
 	callback convention to new sid sidutil::basic_cpu code.
 	(-gen-sfrag-engine-fn): Ditto.
@@ -364,7 +2537,7 @@ Fri Apr 21 22:18:48 2000  Jim Wilson  <wilson@cygnus.com>
 2000-02-25  Nick Clifton  <nickc@cygnus.com>
 
 	* desc-cpu.scm (*_cgen_cpu_open): Initialise signed_overflow_ok_p
-	field. 
+	field.
 
 Thu Feb 24 14:09:01 2000  Doug Evans  <devans@seba.cygnus.com>
 
@@ -373,7 +2546,7 @@ Thu Feb 24 14:09:01 2000  Doug Evans  <devans@seba.cygnus.com>
 
 2000-02-23  Andrew Haley  <aph@cygnus.com>
 
-	* m32r.cpu (pcmpbz): Make pcmpbz a special (i.e. hidden) 
+	* m32r.cpu (pcmpbz): Make pcmpbz a special (i.e. hidden)
 	instruction.
 
 2000-02-24  Ben Elliston  <bje@redhat.com>
@@ -590,7 +2763,7 @@ Wed Sep 29 14:39:39 1999  Dave Brolley  <brolley@cygnus.com>
 1999-09-28  Doug Evans  <devans@casey.cygnus.com>
 
 	* ia32.cpu: New file.
-	
+
 1999-09-25  Doug Evans  <devans@casey.cygnus.com>
 
 	* utils.scm (bit-set?): Fix off by one error.
@@ -606,7 +2779,37 @@ Wed Sep 29 14:39:39 1999  Dave Brolley  <brolley@cygnus.com>
 	* thumb.cpu (*): arm_compute_operand2_foo renamed to
 	compute_operand2_foo.
 
-	
+	* cgen-sid.scm (sim_arguments): Add support for building defs.h.
+	* sid.scm (-hw-gen-set-quiet-pc): Handle #:delay modifier.
+	Call delayed_branch/branch methods instead of assigning to `vpc'.
+	(<hw-pc>,cxmake-skip): Call skip method.
+	(-gen-hw-selector): Call rtl-c++ instead of rtl-c.
+	(<pc>,cxmake-skip): Ditto.
+	(-create-virtual-insns!): Ditto.
+	(op:read): Call estate-make-for-normal-c++ instead of estate-...-c.
+	(op:write): Ditto.
+	(op:record-profile): Specify #:output-language "c++".
+	* sid-cpu.scm (-gen-insn-attr-decls): Rename @cpu@_insn_attr to
+	@arch@_insn_attr.
+	(cgen-desc.h): Use @arch@ namespace instead of @cpu@.
+	Define enums here.
+	(-gen-reg-access-defns): Use rtl-c++ instead of rtl-c.
+	(gen-semantic-code): Ditto.
+	(-gen-sem-case,-gen-sfrag-code): Ditto.
+	(-gen-hardware-types): Delete class @cpu@_cpu_base.
+	(cgen-cpu.h): File is now #included by main cpu class, rather than
+	subclassing.
+	(cgen-defs.h): New proc.
+	(-gen-scache-semantic-fn): Change result type to sem_status.
+	New local `status'.  Call done_cti_insn/done_insn method at end.
+	(cgen-semantics.cxx): Include @cpu@.h instead of @arch@-main.h,
+	cgen-ops.h.
+	(cgen-sem-switch.cxx): Ditto.
+	* sid-decode.scm (-gen-idesc-decls): Update return type of
+	@prefix@_sem_fn.
+	(cgen-decode.h): Add using namespace @arch@.
+	(cgen-decode.cxx): Include @cpu@.h instead of @arch@-main.h.
+
 	* rtl-c.scm (<rtl-c-eval-state>): New member output-language.
 	(estate-output-language-c?,estate-output-language-c++?): New procs.
 	(<rtl-c-eval-state>,vmake!): Handle #:output-language.
@@ -638,14 +2841,17 @@ Tue Sep 21 17:12:55 1999  Dave Brolley  <brolley@cygnus.com>
 
 1999-09-05  Doug Evans  <devans@casey.cygnus.com>
 
-	
+	* sid.scm (<hw-pc>,cxmake-skip): New method.
+	(<pc>,cxmake-skip): New method.
+
 	* decode.scm (decode-build-table): Delete args startbit,index-list.
 	All callers updated.
 	* utils-sim.scm (gen-decoder): Delete args startbit,index-list.
 	All callers updated.
 	* sim-decode.scm (-gen-decode-fn): Always pass 0 for startbit
 	to decode-get-best-bits.
-	
+	* sid-decode.scm (-gen-decode-fn): Ditto.
+
 	* hardware.scm (hw-bits): New proc.
 	(-hw-parse): New arg layout.  All callers updated.
 	(define-full-hardware): New arg layout.  All callers updated.
@@ -680,6 +2886,7 @@ Tue Sep 21 17:12:55 1999  Dave Brolley  <brolley@cygnus.com>
 1999-09-01  Doug Evans  <devans@casey.cygnus.com>
 
 	* sim-decode.scm (-gen-decoder+supporting cast): Move to utils-sim.scm.
+	* sid-decode.scm (-gen-decoder+supporting cast): Ditto.
 	* utils-sim.scm: Decoder generator support moved here.
 	(-decode-equiv-entries?,-decode-sort-entries): New procs.
 	(-gen-decoder-switch): Sort entries for more fall-throughs.
@@ -795,6 +3002,18 @@ Sun Aug 29 11:11:15 1999  Doug Evans  <devans@canuck.cygnus.com>
 	* utils-gen.scm (-gen-ifld-extract-base): Update.
 	(-gen-ifld-extract-beyond): Update.
 	(gen-multi-ifld-extract): Update.
+	* sid-decode.scm (-decode-expr-ifield-values-used): Update.
+	* sid.scm (<hw-pc>,gen-write): Update.
+	(-gen-decode-insn-globals): Update.
+	(-hw-cxmake-get): Update.
+	(<hw-register>,cxmake-get-raw): Update.
+	(<hw-memory>,cxmake-get,gen-set-quiet,gen-write): Update.
+	(<hw-index>,cxmake-get): Update.
+	(<operand>,gen-type,gen-read,cxmake-get): Update.
+	(<operand>,gen-set-quiet,gen-set-trace): Update.
+	(<pc>,cxmake-get): Update.
+	(-create-virtual-insns!): Update.
+	(-decode-split-build-assertion): Update.
 	* *.cpu: Update.
 	* simplify.inc: Update.
 
@@ -835,7 +3054,7 @@ Wed Aug 18 15:04:30 1999  Doug Evans  <devans@canuck.cygnus.com>
 	(gen-reg-access-defn): Ditto.
 	(-gen-hw-addr): Rewrite.
 	(-op-gen-queued-write): Rewrite.
-	* sim-cpu.scm (-gen-cpu-reg-access-decls): 
+	* sim-cpu.scm (-gen-cpu-reg-access-decls):
 	(-gen-scache-semantic-fn): Handle with-generic-write.
 	(-gen-no-scache-semantic-fn): Ditto.
 
@@ -885,12 +3104,15 @@ Wed Aug 18 15:04:30 1999  Doug Evans  <devans@canuck.cygnus.com>
 	(-gen-idesc-init-fn): Update.  Don't initialize pointers to semantic
 	handlers here.
 	(cgen-decode.h): Print sfmt enum.
+	* sid-decode.scm (-gen-semf-fn-name): Delete.
 	* utils-gen.scm (gen-sfmt-enum-decl): New proc.
 
 	* iformat.scm (sfmt-build): Rename sformats from fmt-foo to sfmt-foo.
 	(ifmt-compute!): Ditto.
 	* sim-decode.scm (-gen-decoder-switch): Ditto.
-	
+	* sid-decode.scm (-gen-decode-expr-entry): Ditto.
+	(-gen-decoder-switch): Ditto.
+
 	* insn.scm (insn-virtual?): New proc.
 
 	* enum.scm (gen-enum-decl): Speed up, build string as list and then
@@ -959,7 +3181,31 @@ Wed Aug 18 15:04:30 1999  Doug Evans  <devans@canuck.cygnus.com>
 	gen-sfmt-argvars-foo and rewrite.
 	(-gen-record-args): Rewrite.
 	(-gen-extract-case): Tweak.
-	
+	* sid.scm (gen-profile-index-type): Delete.
+	(ifield argbuf support): Move to utils-sim.scm.
+	(-gen-ifld-decoded-val): Delete, use gen-extracted-ifld-value instead.
+	(hardware argbuf support): Move to utils-sim.scm and sid-decode.scm.
+	(operand argbuf support): Move to utils-sim.scm and sid-decode.scm.
+	(-sim-sformat-argbuf-list): New global.
+	(sim-init!): Initialize it.
+	(sim-analyze-insns!): Set it.
+	(current-sbuf-list): New proc.
+	* sid-decode.scm (-gen-argbuf-elm): Rewrite.
+	(-gen-argbuf-hw-elm): Delete.
+	(-gen-argbuf-fields-union): Generate structs for each sbuf instead
+	of each sfmt.
+	(-gen-record-argbuf-ifld,-gen-trace-argbuf-ifld): New procs.
+	(-gen-extract-decls): Delete.
+	(<hardware-base>,gen-extract,gen-trace-extract): Move here from
+	sid.scm.
+	(<hw-register,gen-extract,gen-trace-extract): Ditto.
+	(<hw-address,gen-extract,gen-trace-extract): Ditto.
+	(-gen-op-extract,-gen-op-trace-extract): New procs.
+	(gen-sfmt-op-argbuf-defns,gen-sfmt-op-argbuf-assigns): Rename from
+	gen-sfmt-argvars-foo and rewrite.
+	(-gen-record-args): Rewrite.
+	(-gen-extract-case): Tweak.
+
 	* cgen-gh.c (gh_putc,gh_puts): New functions.
 	* cgen-gh.h (gh_putc,gh_puts): Declare them.
 	* cos.c (_object_print_elms,_object_print): Use them.
@@ -976,13 +3222,34 @@ Wed Aug 18 15:04:30 1999  Doug Evans  <devans@canuck.cygnus.com>
 
 1999-07-23  Doug Evans  <devans@casey.cygnus.com>
 
-	
+	* sid-cpu.scm (-gen-sem-switch-engine): Move definition of `count'
+	up to avoid g++ 'goto crosses initialization' warning.
+	(-gen-sfrag-engine-fn): Delete vpc arg to NEXT_FRAG.
+	(-gen-sfrag-case): Update use of NEXT_FRAG.
+
 1999-07-22  Doug Evans  <devans@casey.cygnus.com>
 
 	* cos.c (cos_init): Protect _make_x_symbol from garbage collection.
 
 	* read.scm: Load sem-frags.scm.
 	* sem-frags.scm (*): Lots rewritten.
+	* sid.scm (-with-sem-frags?): New global
+	(with-sem-frags?): New proc.
+	(option-init!): Initialize -with-sem-frags?.
+	(option-set!): Recognize with-sem-frags.
+	(sim-init!): Call sim-sfrag-init! if with-sem-frags.
+	* sid-cpu.scm (cgen-sem-switch.cxx): Generate semantic frag version
+	if asked to.
+	(-gen-sfrag-engine-decls): New proc.
+	(-gen-sfrag-code,-gen-sfrag-case,-gen-sfrag-enum-decl): New procs.
+	(-gen-sfrag-engine-frag-table,-gen-sfrag-engine-fn): New procs.
+	(-gen-sfrag-engine): New proc.
+	(-gen-sem-case): Emit setup-semantics if specified.
+	(-gen-sem-switch-engine): Update init/use of computed goto label.
+	* sid-decode.scm (-gen-decode-expr-entry): Fetch ifield values
+	from local vars.
+	(-gen-idesc-decls): Replace sem_address with cgoto.
+	(-gen-scache-decls): Rewrite definition of `execute' member.
 	* arm.cpu (arm isa): Enable decode-splits.
 	* arm7.cpu (multiply insns): Rename result to mul-result.
 
@@ -990,7 +3257,8 @@ Wed Aug 18 15:04:30 1999  Doug Evans  <devans@canuck.cygnus.com>
 	* decode.scm (*): Update.
 	* insn.scm (*): Update.
 	* mach.scm (*): Update.
-	
+	* sid.scm (*): Update.
+
 1999-07-19  Doug Evans  <devans@casey.cygnus.com>
 
 	Record objects as a smob.
@@ -1011,11 +3279,6 @@ Wed Aug 18 15:04:30 1999  Doug Evans  <devans@canuck.cygnus.com>
 	* cos.c (_make_x_symbol): New static global.
 	(object_make): Use it.
 	(cos_init): Initialize it.
-
-1999-07-16  Doug Evans  <devans@casey.cygnus.com>
-
-	* frv.opc (CGEN_DIS_HASH_SIZE): Change to 128.
-	(CGEN_DIS_HASH): Hash on f-op ifield value.
 
 1999-07-15  Doug Evans  <devans@casey.cygnus.com>
 
@@ -1046,7 +3309,8 @@ Wed Aug 18 15:04:30 1999  Doug Evans  <devans@canuck.cygnus.com>
 	* cgen-sim.scm (cgen): Ditto.
 	* cgen-gas.scm (cgen): Ditto.
 	* cgen-stest.scm (cgen): Ditto.
-	
+	* cgen-sid.scm (cgen): Ditto.
+
 1999-07-05  Doug Evans  <devans@casey.cygnus.com>
 
 	* opc-asmdis.scm (-gen-parse-switch): New local var `junk'.
@@ -1066,7 +3330,9 @@ Wed Aug 18 15:04:30 1999  Doug Evans  <devans@canuck.cygnus.com>
 
 	* sim.scm (-gen-hw-index-raw): Handle scalar indices.
 	(-gen-hw-index): Ditto.
-	
+	* sid.scm (-gen-hw-index-raw): Handle scalar indices.
+	(-gen-hw-index): Ditto.
+
 	* sem-frags.scm: New file.
 
 	* attr.scm (attr-parse): Add better checking of input.
@@ -1138,6 +3404,7 @@ Wed Aug 18 15:04:30 1999  Doug Evans  <devans@canuck.cygnus.com>
 	* operand.scm (op-iflds-used): New proc.
 	* utils-gen.scm (gen-ifld-type): Move here from sim.scm
 	and sim-cpu.scm.
+	And from sid.scm,sid-cpu.scm as well.
 	(gen-ifld-extract-decl,-gen-ifld-extract-base): Ditto.
 	(-gen-extract-word,-gen-ifld-extract-beyond): Ditto.
 	(gen-ifld-extract,gen-multi-ifld-extract): Ditto.
@@ -1162,10 +3429,23 @@ Wed Aug 18 15:04:30 1999  Doug Evans  <devans@canuck.cygnus.com>
 	* sim-model.scm (-gen-model-insn-fn): Replace calls to
 	gen-define-ifields with gen-define-ifmt-ifields.  Ditto for
 	gen-extract-foo.
-	
+	* sid.scm (gen-ifld-argbuf-defn): Use gen-ifld-type.
+	(gen-record-argbuf-ifld): Rename from gen-ifld-extract.
+	(gen-record-argvar-ifld): Rename from gen-ifld-extract-argvar.
+	* sid-decode.scm (-gen-decode-expr-entry): Update calls to
+	gen-define-ifields, gen-extract-ifields.
+	(-gen-record-args): Update.
+	(gen-sfmt-argvars-assigns): Update.
+	(-gen-extract-case): Replace calls to gen-define-ifmt-ifields
+	with gen-define-ifields.  Ditto for gen-extract-foo.
+	(-gen-decode-fn): Use gen-ifld-extract-decl/gen-ifld-extract
+	procs rather than method calls.
+
 1999-06-18  Doug Evans  <devans@casey.cygnus.com>
 
-	
+	* sid.scm (-create-virtual-insns!): New local `context', pass it
+	to insn-read.
+
 	* rtl.scm (-rtx-traverse): Output symbol shortcuts in source form,
 	(operand name) not (operand object), (local name) not (local object).
 	(rtx-traverse-with-locals): New proc.
@@ -1212,7 +3492,8 @@ Wed Aug 18 15:04:30 1999  Doug Evans  <devans@canuck.cygnus.com>
 	(ifmt-compute!): Ditto.
 	* sim.scm (sim-finish!): Update.
 	* simplify.inc: (define-normal-insn): Update.
-	
+	* sid-cpu.scm (gen-semantic-code): Update.
+
 	* iformat.scm (-ifmt-lookup-ifmt!): Use insn-set-ifmt!.
 	(-ifmt-lookup-sfmt!): Use insn-set-sfmt!.
 	(ifmt-compute!): Ditto.
@@ -1272,7 +3553,11 @@ Wed Aug 18 15:04:30 1999  Doug Evans  <devans@canuck.cygnus.com>
 
 	* arm.sim (h-tbit): Replace FUN-ACCESS with FUN-SET.
 	(h-mbits): Ditto.
-	
+	* sid.scm (-hw-cxmake-get): s/FUN-ACCESS/FUN-GET/.
+	(-hw-gen-set-quiet): s/FUN-ACCESS/FUN-SET/.
+	(<operand>,cxmake-get): Tweak.
+	(sim-finish!): Delete FUN-ACCESS attribute.  Create FUN-GET,FUN_SET.
+
 1999-06-07  Doug Evans  <devans@casey.cygnus.com>
 
 	* thumb.cpu (dnti): Delete timing spec.
@@ -1289,6 +3574,46 @@ Wed Aug 18 15:04:30 1999  Doug Evans  <devans@canuck.cygnus.com>
 	(-isa-parse): New arg setup-semantics.
 	(-isa-read): Recognize setup-semantics.
 
+	* sid-cpu.scm (gen-extract-fields): Split into two:
+	gen-extract-ifields, gen-extract-ifmt-ifields.
+	(-gen-scache-semantic-fn): Delete `taken_p'.  Delete
+	tracing begin/end messages (done by caller now).
+	(-gen-sem-case): Delete `taken_p'.  Add npc,br_status.  Delete
+	tracing begin/end messages (done by x-before,x-after virtual insns).
+	(-gen-sem-switch-engine): Redo vpc initialization.  Save vpc at
+	end so don't have to look it up again next time.
+	* sid-decode.scm (-decode-expr-ifield-values): New proc.
+	(-decode-expr-ifield-tracking-key): New proc.
+	(-decode-expr-ifield-tracking): New proc.
+	(-decode-expr-ifield-values-used): New proc.
+	(-decode-expr-ifield-mark-used!): New proc.
+	(-gen-decode-expr-set-itype): New proc.
+	(-gen-decode-expr-entry): Rewrite.
+	(-gen-decode-table-entry): New proc.
+	(-gen-decoder-switch): Use it.
+	(-gen-virtual-insn-finder): New proc.
+	(-gen-argbuf-elm): Move here from sid.scm.
+	(-gen-argbuf-hw-elm): Ditto.
+	(-gen-argbuf-fields-union): Add entries for chain,before insns.
+	(-gen-scache-decls): Add `cond' member to @prefix@_scache for
+	conditional-execution isas.
+	(-gen-decode-fn): Record conditional-exec ifield.
+	* sid.scm (-current-pbb-engine?): New global.
+	(current-pbb-engine?,set-current-pbb-engine?!): New procs.
+	(<ifield>,gen-ifld-extract): New arg `indent'.
+	(<multi-ifield>,gen-ifld-extract): Ditto.
+	(-hw-gen-set-quiet-pc): Add pbb support.  Delete `taken_p'.
+	(-op-gen-set-trace): Don't print tracing messages for pbb engine.
+	(-gen-arch-model-decls): Only scan real insns.
+	(scache-engine-insns,pbb-engine-insns): New procs.
+	(-create-virtual-insns!): New proc.
+	(sim-finish!): Call it.
+	(-decode-specialize-insn?): New proc.
+	(-decode-specialize-build-assertion): New proc.
+	(-decode-specialize-insn-1): New proc.
+	(-decode-specialize-insn): New proc.
+	(-fill-sim-insn-list!): New proc.
+	(sim-analyze!): Create copies of insns to be specialized.
 	* utils-cgen.scm (obj-set-name!): New proc.
 
 	* attr.scm (-attr-eval): Rewrite calls to rtx-simplify/rtx-compile.
@@ -1377,9 +3702,28 @@ Thu Jun  3 16:00:40 1999  Doug Evans  <devans@canuck.cygnus.com>
 	(hw-shape,hw-num-elms): New procs.
 	* sim.scm (<hw-register>,gen-profile-index-type): Use "unsigned short"
 	if there's more than 255 registers.
-	
+	* sid.scm (<hw-register>,gen-profile-index-type): Ditto.
+
 	* hardware.scm (-hw-parse): Flag as error CACHE-ADDR specified
 	with get/set specs.
+
+1999-05-21  Doug Evans  <devans@casey.cygnus.com>
+
+	* cgen-sid.scm (sim-arguments): Add -X.
+	* sid-cpu.scm (-gen-hardware-types): Comment out scache vars.
+	(-gen-all-semantic-fns): Don't include PBB support virtual insns.
+	(-gen-sem-case): Use CASE/NEXT macros again.  Tweak indenting.
+	Simplify by supporting pbb engine only.
+	(-gen-sem-switch-init): New proc.
+	(-gen-sem-switch-engine): Rename from -gen-sem-switch-fn.
+	(cgen-sem-switch.cxx): New proc.
+	* sid-decode.scm (-gen-decode-insn-globals): Replace with-sem-switch?
+	with with-pbb?.  Support dual scache/pbb engines.
+	(-gen-idesc-decls): Replace with-sem-switch? with with-pbb?.
+	Support dual scache/pbb engines.
+	(cgen-decode.h): Generate semantic fn decls if with-scache?.
+	* sid.scm (*) with-pbb? replaces with-sem-switch?.
+	(sim-finish!): Create pbb support virtual insns if with-pbb?.
 
 1999-05-10  Ben Elliston  <bje@cygnus.com>
 
@@ -1394,7 +3738,9 @@ Thu Jun  3 16:00:40 1999  Doug Evans  <devans@canuck.cygnus.com>
 
 1999-05-08  Doug Evans  <devans@casey.cygnus.com>
 
-	
+	* sid.scm (<hw-memory>,cxmake-get): Call GETMEM method, not function.
+	(<hw-memory>,gen-set-quiet): Call SETMEM method, not function.
+
 	* utils-cgen.scm (keyword-list->arg-list): Fix call to substring,
 	hobbit can't handle optional third arg.
 
@@ -1405,17 +3751,24 @@ Thu Jun  3 16:00:40 1999  Doug Evans  <devans@canuck.cygnus.com>
 	* arm.sim: New file.
 	* hardware.scm (modify-hardware): New proc.
 	(hardware-init!): Add modify-hardware command.
+	* sid.scm (-hw-cxmake-get): Use method call if FUN-ACCESS specified.
+	(-hw-gen-set-quiet): Ditto.
+	(sim-finish!): Call invalid_insn method.  Define FUN-ACCESS builtin
+	hardware attribute.  Load $arch.sim file if present.
 	* utils-cgen.scm (keyword-list?): New proc.
 	(keyword-list->arg-list,arg-list-validate-name): New procs.
 	(arg-list-check-no-args,arg-list-symbol-arg): New procs.
 
 	* arm7.cpu (eval-cond): Pass pc to @cpu@_eval_cond handler.
 
-	
+	* sid-cpu.scm (-gen-hardware-types): Rename @cpu@_cpu to
+	@cpu@_cpu_cgen.
+
 	* attr.scm (obj-prepend-atlist!): New proc.
 
 	* opc-opinst.scm (cgen-opinst.c): Analyze instructions if necessary.
 
+	* sid.scm (<operand>,profilable?): Use op:type.
 	* sim.scm (<operand>,profilable?): Use op:type.
 
 1999-05-04  Doug Evans  <devans@casey.cygnus.com>
@@ -1436,7 +3789,12 @@ Thu Jun  3 16:00:40 1999  Doug Evans  <devans@canuck.cygnus.com>
 	* read.scm: Load slib/pp.scm, slib/genwrite.scm.
 	(-reader-process-expanded-1): Pretty print logging output.
 
-	
+	* sid-cpu.scm (-gen-reg-access-defns): Make getters `const'.
+	(cgen-cpu.h): Print enums before hardware elements.
+	(cgen-semantics.cxx): @arch@-cgen.h renamed to @arch@-main.h.
+	* sid-decode.scm (cgen-decode.cxx): Ditto.
+	* sid-model.scm (cgen-model.cxx): Ditto.
+
 	* utils-cgen.scm (context-error): Accept variable number of
 	trailing args.
 
@@ -1543,6 +3901,9 @@ Thu Jun  3 16:00:40 1999  Doug Evans  <devans@canuck.cygnus.com>
 	(arch-analyze-insns!): New proc.
 	* opcodes.scm (opcodes-analyze!): Call arch-analyze-insns! instead
 	of calling ifmt-compute! directly.
+	* sid.scm (-sim-insns-analyzed?): Delete.
+	(sim-analyze!): Call arch-analyze-insns! instead of calling
+	ifmt-compute! directly.
 	* sim.scm (-sim-insns-analyzed?): Delete.
 	(sim-analyze!): Call arch-analyze-insns! instead of calling
 	ifmt-compute! directly.
@@ -1609,6 +3970,11 @@ Mon Apr 26 10:30:18 1999  Doug Evans  <devans@canuck.cygnus.com>
 
 	* utils.scm (bits->bools): New proc.
 
+1999-04-23  Doug Evans  <devans@casey.cygnus.com>
+
+	* sid.scm (<multi-ifield>,gen-ifld-extract-decl): Fix call to
+	subfield's gen-ifld-extract-decl method.
+
 1999-04-23  Ben Elliston  <bje@cygnus.com>
 
 	* arm7.cpu (ldrsh-pu): Remove.
@@ -1644,7 +4010,7 @@ Mon Apr 26 10:30:18 1999  Doug Evans  <devans@canuck.cygnus.com>
 	(ldm-p): Reverse the order of register processing for decrement.
 	(stm-p): Likewise.
 	(stbi): Remove; handled by the str-* insns.
-	
+
 1999-04-21  Doug Evans  <devans@casey.cygnus.com>
 
 	* thumb.cpu (cmp): Fix carry bit computation.
@@ -1745,6 +4111,67 @@ Mon Apr 26 10:30:18 1999  Doug Evans  <devans@canuck.cygnus.com>
 	(-attr-sort): Split result into two lists, bools and non-bools.
 	(current-attr-list-for): Update.
 
+	* cgen-sid.scm (sim-arguments): Add -H -> build desc.h file.
+	* sid-cpu.scm (-gen-attr-decls): New proc.
+	(-gen-insn-attr-decls): New proc.
+	(cgen-desc.h): New proc.
+	(cgen-cpu.h): Put everything in @cpu@ namespace.
+	(gen-parallel-exec-type): Change prefix of parexec struct from
+	@cpu@ to @prefix@.
+	(-gen-trace-record-type): Ditto for trace_record struct.
+	(-gen-write-case): Update.
+	(-gen-scache-semantic-fn): Change function prefix from @cpu@ to
+	@prefix@.  Update scache struct references.
+	(-gen-sem-case): Update scache struct references.
+	(-gen-sem-switch-fn): Update idesc struct reference.
+	Update insn_type enum reference.
+	(cgen-write.cxx): Update scache,argbuf references.
+	(cgen-semantics.cxx): Simplify namespace choice (always @cpu@).
+	* sid-decode.scm (IDESC-TABLE-VAR): Change prefix of insn_data
+	from @cpu@ to @prefix@.
+	(-gen-decode-insn-entry): Use gen-cpu-insn-enum.
+	(-gen-decode-expr-entry): Ditto.  Change prefix of INSN_X_INVALID
+	from @CPU@ to @PREFIX@.
+	(-gen-decoder-switch): Change prefix of INSN_X_INVALID
+	from @CPU@ to @PREFIX@.
+	(-gen-decode-insn-globals): Generate insn attributes.
+	(-gen-sem-fn-name): Change function prefix from @cpu@ to @prefix@.
+	(-gen-sem-fn-decls): Use -gen-sem-fn-name.  Add `using' for
+	semantic fn typedef.
+	(-gen-idesc-decls): Simplify cpu class name (always @cpu@_cpu).
+	Change prefix of scache struct from @cpu@ to @prefix@.
+	Change prefix of semantic fn typedef from @cpu@ to @prefix@.
+	Change prefix of idesc struct from @cpu@ to @prefix@.
+	Change prefix of insn_type enum from @cpu@ to @prefix@.
+	(-gen-argbuf-fields-union): Change prefix of sem_fields union
+	from @cpu@ to @prefix@.
+	(-gen-scache-decls): Change prefix of scache struct from
+	@cpu@ to @prefix@.  Update idesc struct name.
+	Update decode,execute methods.
+	(-gen-extract-case): Update to type name changes.
+	(-gen-decode-fn): Ditto.
+	(cgen-decode.h): Put everything in @cpu@ namespace (except
+	semantic fn decls).  Change prefix of insn_word from @cpu@ to @prefix@.
+	(cgen-decode.cxx): Add using namespace @cpu@.
+	* sid-model.scm (-gen-hw-profile-decls): Change prefix of
+	model_mark_get/set from @cpu@ to @prefix@.
+	(gen-model-unit-fn-name): Change function prefix from @cpu@ to
+	@prefix@.
+	(gen-model-fn-decls): Update idesc struct name.  Change prefix
+	of model_insn_before/after from @cpu@ to @prefix@.
+	(-gen-model-insn-fn): Update scache/idesc/argbuf struct names.
+	Update insn_word type name.
+	(-gen-model-timing-table): Update INSN_TIMING struct name.
+	(-gen-model-init-fn): Update MODEL_DATA struct name.
+	(-gen-mach-defns): Update name of init_idesc_table fn.
+	(cgen-model.cxx): Add using namespace @cpu@.
+	* sid.scm (gen-cpu-class): Delete.
+	(gen-attr-type): New proc.
+	(gen-obj-attr-sid-defn): New proc.
+	(<operand>,gen-profile-code): Update name of model_mark_get/set fn.
+	(gen-cpu-insn-enum-decl): Change prefix of insn_type enum from
+	@CPU@ to @PREFIX@.
+	(gen-cpu-insn-enum): Update name of insn enum.
 	* thumb.cpu (bx-rs): Rename @cpu@_do_bx to @prefix@_do_bx.
 	(bx-hs): Ditto.
 	(swi): Rename @cpu@_swi to @prefix@_swi.
@@ -1777,7 +4204,9 @@ Mon Apr 26 10:30:18 1999  Doug Evans  <devans@canuck.cygnus.com>
 	(semantic-attrs): Ditto.
 	* sim.scm (sim-finish!): Update calls to define-full-insn.
 	* simplify.inc (define-normal-insn): Update call to define-full-insn.
-	
+	* sid-cpu.scm (gen-semantic-code): Handle insn-condition.
+	* sid.scm (sim-finish!): Update call to define-full-insn.
+
 Tue Apr 13 17:04:34 1999  Doug Evans  <devans@canuck.cygnus.com>
 
 	* Makefile.am (sim-cpu): Allow specification of ISA.
@@ -1824,6 +4253,27 @@ Sun Apr 11 00:37:56 1999  Jim Wilson  <wilson@cygnus.com>
 	rtl-c-with-alist.
 	(<ifield>,gen-extract): Ditto.
 	(<multi-ifield>,gen-insert,gen-extract): Ditto.
+	* sid-cpu.scm (-gen-reg-access-defns): Ditto.
+	(gen-define-ifmt-ifields): New proc.
+	(gen-semantic-code): Rewrite.
+	* sid-decode.scm (-gen-decode-expr-entry): New proc.
+	(-gen-decoder-switch): Handle expression tables.
+	(-gen-extract-case): Call gen-define-ifmt-ifields instead of
+	gen-define-fields.
+	* sid-model.scm (-gen-model-insn-fn): Call gen-define-ifmt-ifields
+	instead of gen-define-fields.
+	* sid.scm (<ifield>,gen-ifld-extract-decl): New arg `indent', all
+	callers updated.
+	(<multi-ifield,gen-ifld-extract-decl): Ditto.
+	(-gen-ifld-extract-base): Call rtl-c instead of rtl-c-with-alist.
+	(-gen-ifld-extract-beyond): Ditto.
+	(<multi-ifield>,gen-ifld-extract): Ditto.
+	(<*>,cxmake-get,gen-set-quiet,gen-set-trace,gen-write): Update to new
+	rtl evaluation code.
+	(op:read): Build an <eval-state> to pass to gen-read.
+	(op:write): Build an <eval-state> to pass to gen-write.
+	(op:record-profile): Build an <eval-state> to pass to
+	gen-record-profile.
 	* sim-cpu.scm (gen-semantic-code): Rewrite.
 	* sim.scm (-gen-ifld-extract-base): Call rtl-c instead of
 	rtl-c-with-alist.
@@ -1918,14 +4368,40 @@ Fri Apr  9 19:26:28 1999  Jim Wilson  <wilson@cygnus.com>
 	(s-parallel): Replace do {...} while (0) with {...}.
 	(s-sequence): Ditto.
 
-	
+	* sid-cpu.scm (gen-parallel-exec-type): Make type of `written'
+	consistent.
+	(-gen-write-case,-gen-sem-case): Ditto.
+	(-gen-sem-case): Only specify `written' if profiling or
+	parallel-write-back.
+	(-gen-scache-semantic-fn,-gen-all-semantic-fns): Put procs back in.
+	(-gen-sem-switch-fn): New proc.
+	(cgen-semantics.cxx): Emit either semantic fns or semantic switch
+	based on with-sem-switch option.
+	* sid-decode.scm (-gen-decode-insn-globals): Only define
+	idesc_table_initialized_p if with-sem-switch.  Record semantic fn
+	addresses in idesc_table if !with-sem-switch.
+	(-gen-sem-fn-decls): Rewrite.
+	(-gen-idesc-decls): Define @cpu@_sem_fn type.  Define `execute'
+	member based on with-sem-switch.  Only define
+	`idesc_table_initialized_p' member if with-sem-switch.
+	(cgen-decode.h): If !with-sem-switch, declare semantic fns.
+	* sid.scm (-with-sem-switch?): New variable.
+	(option-init!): Initialize it.
+	(option-set!): Set it.
+	(with-sem-switch?): New proc.
+	(-op-gen-set-trace): Only emit `written' reference if profiling.
+	(sim-finish!): Use h_pc_set to set pc.
+
 1999-03-30  Doug Evans  <devans@casey.cygnus.com>
 
 	* sparccom.cpu (arith-cc-binop): New args s32-set-flags,s64-set-flags.
 	All callers updated.
 	(arith-carry-cc-binop): New arg set-flags.  All callers updated.
 
-	
+	* sid.scm (gen-argbuf-type): Delete.
+	(-gen-argbuf-fields-union): Move to ...
+	* sid-decode.scm: ... here.
+
 	* read.scm (-reader-process-expanded-1): New proc.
 	(-reader-process-expanded): Call it to catch nested begin's.
 	(reader-process): Move `begin' handling to -reader-process-expanded.
@@ -1952,6 +4428,10 @@ Fri Apr  9 19:26:28 1999  Jim Wilson  <wilson@cygnus.com>
 	(-fill-slot!): Simplify.
 	(-build-slots): Simplify.
 
+	* dev.scm (load-sid): Don't load sid-arch.scm.
+
+	* sid-decode.scm: Replace computed goto decoder/extractor with plain
+	switch's.
 	* sim-decode.scm: Replace computed goto decoder/extractor with plain
 	switch's.
 
@@ -1959,6 +4439,7 @@ Fri Apr  9 19:26:28 1999  Jim Wilson  <wilson@cygnus.com>
 
 	* sim-decode.scm: Clean up pass.  Move decoder computation into ...
 	* decode.scm: ... here.  New file.
+	* sid-decode.scm: Use decoder computation code in decode.scm.
 	* read.scm: Load decode.scm.
 
 	* arm.cpu (arm710 model): Add u-exec function unit.
@@ -1985,7 +4466,10 @@ Fri Apr  9 19:26:28 1999  Jim Wilson  <wilson@cygnus.com>
 
 	* attr.scm (<bitset-attribute>,parse-value): Recognize strings.
 
-	
+	* cgen-sid.scm: Don't load sid-arch.scm.
+	(sim-arguments): Delete unused entries.
+	* sid-arch.scm: Delete.
+
 	* insn.scm (<insn>,iflds): Renamed from flds.  All uses updated.
 	(<insn>,ifld-assertions): New member.
 	(<insn>,make!): New arg ifld-assertions, all callers updated.
@@ -2019,6 +4503,37 @@ Fri Apr  9 19:26:28 1999  Jim Wilson  <wilson@cygnus.com>
 	(keep-mach-atlist?): New proc.
 	(keep-isa-multiple?,current-keep-isa-name-list): New proc.
 	(reader-install-builtin!): Renamed from -install-builtin!.
+	* sid-cpu.scm (-gen-reg-access-defns): Renamed from
+	-gen-cpu-reg-access-defns.  Rewrite.
+	(gen-reg-access-defn): Delete.
+	(-gen-hardware-struct): New proc.
+	(-gen-hardware-types): Simplify.  Add multiple-isa support.
+	(gen-semantic-fn,-gen-all-semantics): Delete.
+	(-gen-read-args,-gen-read-case,-gen-read-switch): Delete.
+	(cgen-cpu.c,cgen-read.c,cgen-sem-switch.c,cgen-mainloop.in): Delete.
+	(cgen-write.cxx,cgen-semantics.cxx,cgen-decode.cxx): Renamed from *.c.
+	Call sem-analyze-insns!.
+	(cgen-semantics.cxx): Add multiple-isa support.
+	* sid-decode.c (-gen-idesc-decls): Add multiple-isa support.
+	(-gen-scache-decls,-gen-decode-fn): Ditto.
+	(cgen-decode.h): Call sem-analyze-insns!.
+	* sid-model.scm (cgen-model.cxx): Renamed from cgen-model.c.
+	* sid.scm (-with-multiple-isa?): New variable.
+	(option-init!): Initialize it.
+	(option-set!): Set it.
+	(with-multiple-isa?): New proc.
+	(gen-cpu-ref): New arg isas.  All callers updated.
+	(gen-cpu-class): New proc.
+	(*-get-macro,*-set-macro): Delete.
+	(gen-reg-get-fun-name,gen-reg-set-fun-name): New procs.
+	(-hw-gen-fun-get): Call gen-reg-get-fun-name.
+	(-hw-gen-fun-set): Call gen-reg-set-fun-name.
+	(-gen-hw-index): Call rtx-c instead of rtx-c-with-temps for rtxs.
+	(-sim-insns-analyzed): New global variable.
+	(sim-init!): Reset it.
+	(sim-analyze-insns!): New proc.
+	(sim-analyze!): Don't do instruction analysis here.
+	(sim-finish!): Specify isa of x-invalid insn.
 	* sim.scm (sim-finish!): Specify isa of added x-* virtual insns.
 
 1999-03-22  Doug Evans  <devans@casey.cygnus.com>
@@ -2034,6 +4549,14 @@ Fri Apr  9 19:26:28 1999  Jim Wilson  <wilson@cygnus.com>
 	(define-setters): Ditto.
 	(sanitize): Recognize isa elements.
 
+	* sid-cpu.scm (*): Replace cpu:parallel-exec? call with
+	state-parallel-exec?.
+	* sid-model.scm (*): Ditto.
+	* sid-decode.scm (*): Ditto.  Replace cpu:decode-assist with
+	state-decode-assist.
+
+	* sid-decode.scm (decode-bits): Replace list-reverse! with reverse!.
+	(-gen-decode-switch): Rewrite to not generate deeply nested lists.
 	* sim-decode.scm (-gen-decode-switch): Ditto.
 
 	* sim-arch.scm (-regs-for-access-fns): Delete.
@@ -2124,7 +4647,7 @@ Fri Apr  9 19:26:28 1999  Jim Wilson  <wilson@cygnus.com>
 	(-opt-spec-update): New proc.
 	(common-arguments): First arg is string, not symbol.
 	(-cgen): Call -opt-spec-update.  Rewrite argument parsing.
-	
+
 	* rtl.scm (rtx-get): Default mode of string arg is INT.
 
 	* rtl.scm (s-subword): Renamed from s-subreg.  All uses updated.
@@ -2136,7 +4659,12 @@ Fri Apr  9 19:26:28 1999  Jim Wilson  <wilson@cygnus.com>
 	* Makefile.in: Rebuild.
 	* doc/Makefile.in: Rebuild.
 
-	
+	* sid-cpu.scm (-extract-chunk-specs): New proc.
+	(gen-define-fields): Use it.
+	(-extract-chunk): New proc.
+	(-gen-extract-beyond-var-list): Use it.
+	(gen-extract-fields): Simplify.
+
 1999-03-22  Ben Elliston  <bje@cygnus.com>
 
 	* arm7.cpu (ldri-p): New instruction.
@@ -2144,7 +4672,7 @@ Fri Apr  9 19:26:28 1999  Jim Wilson  <wilson@cygnus.com>
 	(addi): Reinstate.
 	(movi): Likewise.
 	(all): Use (const x) in subreg expressions.
-			
+
 1999-03-19  Ben Elliston  <bje@cygnus.com>
 
 	* arm7.cpu (smull): Use operand field `rs', not `mul-rn'. Thinko.
@@ -2203,7 +4731,8 @@ Tue Mar 16 13:22:01 1999  Doug Evans  <devans@canuck.cygnus.com>
 	(f-imm12,f-offset24,swi,undef): Fix thinko, add `const'.
 	* thumb.cpu (h-gr-t,h-lr-t,h-sp-t,dnti,h-hiregs): s/MACH/ISA/.
 
-	
+	* sid-decode.scm (cgen-decode.c): Call rtl-gen-init!.
+
 1999-03-11  Doug Evans  <devans@casey.cygnus.com>
 
 	* hardware.scm (<hw-immediate>,mode-ok?): Ensure result is boolean.
@@ -2272,7 +4801,34 @@ Tue Mar 16 13:22:01 1999  Doug Evans  <devans@canuck.cygnus.com>
 	(fp-ld-op): New arg `dest', all callers updated.
 	(*): Replace `make-di' with `join'.
 
-	
+	* sid-cpu.scm (-gen-cpu-reg-access-defns): Use get/set specs if
+	present.
+	(gen-semantic-code): Save/restore rtl generator state.
+	(cgen-cpu.h): Call rtl-gen-init!.
+	* sid.scm (-gen-ifld-extract-base): Update call to rtx-c-with-alist.
+	(-gen-ifld-extract-beyond): Ditto.
+	(<multi-ifield>,gen-ifld-extract): Ditto.
+	(all gen-read,gen-write,cxmake-get,gen-set-* methods): New arg
+	`gstate'.
+	(-hw-gen-set-quiet-pc): Ditto.
+	(<hw-pc>,gen-write): Ditto.
+	(-hw-cxmake-get): Ditto.  Call getter function if present.
+	(<hw-register>,cxmake-get-raw): New method.
+	(<hw-register>,gen-set-quiet-raw): New method.
+	(-hw-gen-set-quiet): New arg `gstate'.
+	(hw-fun-access?): Delete.
+	(gen-reg-access-defn): Output function contents.
+	(-gen-hw-index-raw): Update call to rtx-c.  Update cxmake-get
+	invocation.
+	(-gen-hw-index): Ditto.
+	(op:read): Update gen-read invocation.
+	(op:write): Update gen-write invocation.
+	(<operand>,cxmake-get,gen-set-quiet,gen-set-trace): Handle raw-reg
+	operands.
+	(-op-gen-set-quiet,-op-gen-set-quiet-parallel): New arg `gstate'.
+	(-op-gen-set-trace,-op-gen-set-trace-parallel): Ditto.
+	(<unit>,gen-profile-code): Update to sim.scm version.
+
 	* sim-arch.scm (-regs-for-access-fns): New proc.
 	(-biggest-reg-mode): New proc.
 	(-gen-arch-reg-access-decls,-gen-arch-reg-access-defns): Rewrite.
@@ -2465,7 +5021,18 @@ Tue Mar 16 13:22:01 1999  Doug Evans  <devans@canuck.cygnus.com>
 
 	* utils.scm (alist-remove-duplicates): Delete.
 
-	
+	* sid.scm (sim-init!): Delete private debugging code.
+
+1999-03-10  Frank Ch. Eigler  <fche@cygnus.com>
+
+	* cgen-sid.scm: New file for C++ simulator application.
+	* sid-arch.scm: Ditto.
+	* sid-cpu.scm: Ditto.
+	* sid-decode.scm: Ditto.
+	* sid-model.scm: Ditto.
+	* sid.scm: Ditto.
+	* utils-cgen.scm (gen-mach-sid-name): Remove this accident.
+
 1999-03-05  Ben Elliston  <bje@cygnus.com>
 
 	* arm.cpu: New file.
@@ -3100,7 +5667,8 @@ Tue Feb 23 12:10:29 1999  Doug Evans  <devans@canuck.cygnus.com>
 	valid C.
 	(<{integer,enum}-attribute>,gen-value-for-defn): Ditto.
 
-	
+	* dev.scm: Add sid support.
+
 	* Makefile.am (opcodes,sim-arch,sim-cpu): New targets.
 	(CLEANFILES): Add tmp-*.
 	* Makefile.in: Rebuild.
@@ -3895,7 +6463,7 @@ Mon Nov  9 12:07:56 1998  Dave Brolley  <brolley@cygnus.com>
 	* Makefile.in: Regenerate.
 	* fr30.cpu (add): Change ADD to add. Add more registers and set
 	status bits on 'add' instruction.
-	
+
 Fri Nov  6 18:15:05 1998  James E Wilson  <wilson@wilson-pc.cygnus.com>
 
 	* sim.scm (-gen-arch-model-decls):  Default MAX_UNITS to 1 instead

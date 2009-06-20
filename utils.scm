@@ -1,5 +1,5 @@
 ; Generic Utilities.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000-2005, 2006, 2007 Red Hat, Inc.
 ; This file is part of CGEN.
 ; See file COPYING.CGEN for details.
 
@@ -34,11 +34,9 @@
   (list proc arg1 arg2 arg3 arg4 arg5 arg6 arg7)
 )
 
-; ??? value doesn't matter too much here, just check if portable
-; Name was `UNSPECIFIED' but that conflicts with hobbit.
+; Value doesn't matter too much here, just ensure it's portable.
 (define *UNSPECIFIED* (if #f 1))
 
-; Define as global to avoid multiple copies in hobbit generated code.
 (define assert-fail-msg "assertion failure:")
 
 (defmacro assert (expr)
@@ -60,7 +58,10 @@
   (lambda args
     (for-each (lambda (str)
 		(if (pair? str)
-		    (apply message str)
+		    (begin 
+		      (message "(")
+		      (for-each (lambda (s) (message s " ")) str)
+		      (message ")"))
 		    (display str (current-error-port))))
 	      args))
 )
@@ -68,8 +69,6 @@
 ; Print a message if the verbosity level calls for it.
 ; This is a macro as a bit of cpu may be spent computing args,
 ; and we only want to spend it if the result will be printed.
-; Macro's can't be used in hobbit-compiled code, so instead there use:
-; (if (verbose? level) (message ...)).
 
 (defmacro logit (level . args)
   `(if (>= verbose-level ,level) (message ,@args))
@@ -86,6 +85,12 @@
     (write (spaces n) port))
 )
 
+; Concatenate all the arguments and make a string.  Symbols are
+; converted to strings.
+(define (string/symbol-append . sequences)
+  (define (sequence->string o) (if (symbol? o) (symbol->string o) o))
+  (apply string-append (map sequence->string sequences)))
+
 ; Often used idiom.
 
 (define (string-map fn . args) (apply string-append (apply map (cons fn args))))
@@ -93,7 +98,6 @@
 ; Collect a flat list of returned sublists from the lambda fn applied over args.
 
 (define (collect fn . args) (apply append (apply map (cons fn args))))
-
 
 ; Map over value entries in an alist.
 ; 'twould be nice if this were a primitive.
@@ -127,7 +131,8 @@
 		 (fn l))))))
 )
 
-; Turn STR into a proper C symbol.
+; Turn string or symbol STR into a proper C symbol.
+; The result is a string.
 ; We assume STR has no leading digits.
 ; All invalid characters are turned into '_'.
 ; FIXME: Turn trailing "?" into "_p".
@@ -135,16 +140,19 @@
 (define (gen-c-symbol str)
   (if (not (or (string? str) (symbol? str)))
       (error "gen-c-symbol: not symbol or string:" str))
-  (map-over-string (lambda (c) (if (id-char? c) c #\_)) str)
+  (map-over-string (lambda (c) (if (id-char? c) c #\_))
+		   (->string str))
 )
 
-; Turn STR into a proper file name, which is defined to be the same
-; as gen-c-symbol except use -'s instead of _'s.
+; Turn string or symbol STR into a proper file name, which is
+; defined to be the same as gen-c-symbol except use -'s instead of _'s.
+; The result is a string.
 
 (define (gen-file-name str)
   (if (not (or (string? str) (symbol? str)))
       (error "gen-file-name: not symbol or string:" str))
-  (map-over-string (lambda (c) (if (id-char? c) c #\-)) str)
+  (map-over-string (lambda (c) (if (id-char? c) c #\-))
+		   (->string str))
 )
 
 ; Turn STR into lowercase.
@@ -157,6 +165,24 @@
 
 (define (string-upcase str)
   (map-over-string (lambda (c) (char-upcase c)) str)
+)
+
+; Turn SYM into lowercase.
+
+(define (symbol-downcase sym)
+  (string->symbol (string-downcase (symbol->string sym)))
+)
+
+; Turn SYM into uppercase.
+
+(define (symbol-upcase sym)
+  (string->symbol (string-upcase (symbol->string sym)))
+)
+
+; Symbol sorter.
+
+(define (symbol<? a b)
+  (string<? (symbol->string a) (symbol->string b))
 )
 
 ; Drop N chars from string S.
@@ -246,8 +272,73 @@
 		      l)))
 	(else (error "stringize: can't handle:" l)))
 )
+
+; Same as string-append, but accepts symbols too.
+; PERF: This implementation may be unacceptably slow.  Revisit.
+
+(define stringsym-append
+  (lambda args
+    (apply string-append
+	   (map (lambda (s)
+		  (if (symbol? s)
+		      (symbol->string s)
+		      s))
+		args)))
+)
+
+; Same as symbol-append, but accepts strings too.
+
+(define symbolstr-append
+  (lambda args
+    (string->symbol (apply stringsym-append args)))
+)
+
+; Given a symbol or a string, return the string form.
+
+(define (->string s)
+  (if (symbol? s)
+      (symbol->string s)
+      s)
+)
+
+; Given a symbol or a string, return the symbol form.
+
+(define (->symbol s)
+  (if (string? s)
+      (string->symbol s)
+      s)
+)
 
 ; Output routines.
+
+;; Given some state that has a setter function (SETTER NEW-VALUE) and
+;; a getter function (GETTER), call THUNK with the state set to VALUE,
+;; and restore the original value when THUNK returns.  Ensure that the
+;; original value is restored whether THUNK returns normally, throws
+;; an exception, or invokes a continuation that leaves the call's
+;; dynamic scope.
+(define (setter-getter-fluid-let setter getter value thunk)
+  (let ((swap (lambda ()
+		(let ((temp (getter)))
+		  (setter value)
+		  (set! value temp)))))
+    (dynamic-wind swap thunk swap)))
+      
+
+;; Call THUNK with the current input and output ports set to PORT, and
+;; then restore the current ports to their original values.
+;; 
+;; This ensures the current ports get restored whether THUNK exits
+;; normally, throws an exception, or leaves the call's dynamic scope
+;; by applying a continuation.
+(define (with-input-and-output-to port thunk)
+  (setter-getter-fluid-let
+   set-current-input-port current-input-port port
+   (lambda ()
+     (setter-getter-fluid-let
+      set-current-output-port current-output-port port
+      thunk))))
+
 
 ; Extension to the current-output-port.
 ; Only valid inside string-write.
@@ -472,6 +563,22 @@
   (reverse! (list-drop n (reverse l)))
 )
 
+;; left fold
+(define (foldl kons accum lis) 
+  (if (null? lis) accum 
+      (foldl kons (kons accum (car lis)) (cdr lis))))
+
+;; right fold
+(define (foldr kons knil lis) 
+  (if (null? lis) knil 
+      (kons (car lis) (foldr kons knil (cdr lis)))))
+
+;; filter list on predicate
+(define (filter p ls)
+  (foldr (lambda (x a) (if (p x) (cons x a) a)) 
+	 '() ls))
+
+
 ; APL's +\ operation on a vector of numbers.
 
 (define (plus-scan l)
@@ -488,6 +595,7 @@
 
 ; Remove duplicate elements from sorted list L.
 ; Currently supported elements are symbols (a b c) and lists ((a) (b) (c)).
+; NOTE: Uses equal? for comparisons.
 
 (define (remove-duplicates l)
   (let loop ((l l) (result nil))
@@ -516,6 +624,8 @@
 ; This is not intended to be applied to large lists with an expected large
 ; result (where sorting the list first would be faster), though one could
 ; add such support later.
+;
+; ??? Rename to follow memq/memv/member naming convention.
 
 (define (nub l key-generator)
   (let loop ((l l) (keys (map key-generator l)) (result nil))
@@ -541,12 +651,13 @@
 
 ; Return intersection of two lists.
 
-(define (intersection l1 l2)
-  (cond ((null? l1) l1)
-	((null? l2) l2)
-	((memq (car l1) l2) (cons (car l1) (intersection (cdr l1) l2)))
-	(else (intersection (cdr l1) l2)))
-)
+(define (intersection a b) 
+  (foldl (lambda (l e) (if (memq e a) (cons e l) l)) '() b))
+
+; Return union of two lists.
+
+(define (union a b) 
+  (foldl (lambda (l e) (if (memq e l) l (cons e l))) a b))
 
 ; Return a count of the number of elements of list L1 that are in list L2.
 ; Uses memq.
@@ -767,19 +878,22 @@
 (define (bytes->bits bytes) (* bytes 8))
 
 ; Return a list of integers.
-; ARGS is either a list of one integer (N) meaning return a list from 0 to N-1,
-; or a list of two integers (START N) meaning return a list from START to
-; START+N-1.
-; FIXME: change to (iota n . start).
+; Usage:
+; (.iota count)            ; start=0, incr=1
+; (.iota count start)      ; incr=1
+; (.iota count start incr)
 
-(define (iota . args)
-  (case (length args)
-    ((1) (let loop ((n (car args)) (z nil))
-	   (if (<= n 0) z (loop (1- n) (cons (1- n) z)))))
-    ((2) (let ((start (car args)))
-	   (let loop ((n (cadr args)) (z nil))
-	     (if (<= n 0) z (loop (1- n) (cons (+ start (1- n)) z))))))
-    (else (error "iota: wrong number of arguments:" args)))
+(define (iota count . start-incr)
+  (if (> (length start-incr) 2)
+      (error "iota: wrong number of arguments:" start-incr))
+  (if (< count 0)
+      (error "iota: count must be non-negative:" n))
+  (let ((start (if (pair? start-incr) (car start-incr) 0))
+	(incr (if (= (length start-incr) 2) (cadr start-incr) 1)))
+    (let loop ((i start) (count count) (result '()))
+      (if (= count 0)
+	  (reverse! result)
+	  (loop (+ i incr) (- count 1) (cons i result)))))
 )
 
 ; Return a list of the first N powers of 2.
@@ -810,7 +924,7 @@
 
 ; Return #t if each element of bools is #t.  Since Scheme considers any
 ; non-#f value as #t we do too.
-; (all-true? ()) is #t since that is the identity element.
+; (all-true? '()) is #t since that is the identity element.
 
 (define (all-true? bools)
   (cond ((null? bools) #t)
@@ -934,14 +1048,6 @@
 
 ; Compute the list of all indices from bits missing in MASK.
 ; e.g. (missing-bit-indices #xff00 #xffff) -> (0 1 2 3 ... 255)
-;
-; Hobbit emits two functions named `missing_bit_indices_fn31' for this.
-;(define (missing-bit-indices mask full-mask)
-;  (let* ((bitvals (bit-vals (logxor mask full-mask)))
-;	 (selectors (bit-patterns (length bitvals))))
-;    (map (lambda (sel) (apply + (map * sel bitvals))) selectors))
-;)
-; So it's rewritten to this ...
 
 (define (missing-bit-indices mask full-mask)
   (let* ((bitvals (bit-vals (logxor mask full-mask)))
@@ -1064,23 +1170,34 @@
 	(else (find-apply fn pred (cdr l))))
 )
 
-; Given a list of lists L such that the first element in each list names the
-; entry, look up symbol S in that and return its index.  If not found,
-; return #f.
-; Eg: (lookup 'element2 '((element1 1) (element2 2)))
-; Granted, linear searching isn't efficient.  If it ever becomes a problem we
-; can do something about it then.
+; Given a list L, look up element ELM and return its index.
+; If not found, return #f.
 ; I is added to the result.
+; (Yes, in one sense I is present to simplify the implementation.  Sue me.)
 
-(define (lookup-index s l i)
+(define (eqv-lookup-index elm l i)
+  (cond ((null? l) #f)
+	((eqv? elm (car l)) i)
+	(else (eqv-lookup-index elm (cdr l) (1+ i))))
+)
+
+; Given an associative list L, look up entry for symbol S and return its index.
+; If not found, return #f.
+; Eg: (lookup 'element2 '((element1 1) (element2 2)))
+; I is added to the result.
+; (Yes, in one sense I is present to simplify the implementation.  Sue me.)
+; NOTE: Uses eq? for comparisons.
+
+(define (assq-lookup-index s l i)
   (cond ((null? l) #f)
 	((eqv? s (caar l)) i)
-	(else (lookup-index s (cdr l) (1+ i))))
+	(else (assq-lookup-index s (cdr l) (1+ i))))
 )
 
 ; Return the index of element ELM in list L or #f if not found.
 ; If found, I is added to the result.
 ; (Yes, in one sense I is present to simplify the implementation.  Sue me.)
+; NOTE: Uses equal? for comparisons.
 
 (define (element-lookup-index elm l i)
   (cond ((null? l) #f)
@@ -1089,6 +1206,7 @@
 )
 
 ; Return #t if ELM is in ELM-LIST.
+; NOTE: Uses equal? for comparisons (via `member').
 
 (define (element? elm elm-list)
   (->bool (member elm elm-list))
@@ -1124,8 +1242,8 @@
   (if (number? x)
       x
       ; A symbol bound to a number?
-      (if (and (symbol? x) (symbol-bound? #f x) (number? (eval x)))
-	  (eval x)
+      (if (and (symbol? x) (symbol-bound? #f x) (number? (eval1 x)))
+	  (eval1 x)
 	  ; An enum value that has a known numeric value?
 	  (let ((e (enum-lookup-val x)))
 	    (if (number? (car e))
@@ -1150,37 +1268,37 @@
   (cons "\
 THIS FILE IS MACHINE GENERATED WITH CGEN.
 
-Copyright (C) 1996, 1997, 1998, 1999 Free Software Foundation, Inc.
+Copyright 1996-2007 Free Software Foundation, Inc.
 "
 	"\
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
-any later version.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+   You should have received a copy of the GNU General Public License along
+   with this program; if not, write to the Free Software Foundation, Inc.,
+   51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.
 "
 ))
 
 ; Pair of header,trailer parts of copyright.
 
-(define copyright-cygnus
+(define copyright-red-hat
   (cons "\
 THIS FILE IS MACHINE GENERATED WITH CGEN.
 
-Copyright (C) 2000 Red Hat, Inc.
+Copyright (C) 2000-2007 Red Hat, Inc.
 "
 	"\
 "))
 
-; Set this to one of copyright-fsf, copyright-cygnus.
+; Set this to one of copyright-fsf, copyright-red-hat.
 
 (define CURRENT-COPYRIGHT copyright-fsf)
 
@@ -1191,18 +1309,22 @@ This file is part of the GNU Binutils and/or GDB, the GNU debugger.
 ")
 
 (define package-gnu-simulators "\
-This file is part of the GNU Simulators.
+This file is part of the GNU simulators.
 ")
 
-(define package-cygnus-simulators "\
-This file is part of the Cygnus Simulators.
+(define package-red-hat-simulators "\
+This file is part of the Red Hat simulators.
+")
+
+(define package-cgen "\
+This file is part of CGEN.
 ")
 
 ; Return COPYRIGHT, with FILE-DESC as the first line
 ; and PACKAGE as the name of the package which the file belongs in.
 ; COPYRIGHT is a pair of (header . trailer).
 
-(define (gen-copyright file-desc copyright package)
+(define (gen-c-copyright file-desc copyright package)
   (string-append "/* " file-desc "\n\n"
 		 (car copyright)
 		 "\n" package "\n"

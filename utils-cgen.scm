@@ -1,5 +1,5 @@
 ; CGEN Utilities.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2002, 2003 Red Hat, Inc.
 ; This file is part of CGEN.
 ; See file COPYING.CGEN for details.
 ;
@@ -70,7 +70,7 @@
 ; Each named entry in the description file typically has these three members:
 ; name, comment attrs.
 
-(define <ident> (class-make '<ident> () '(name comment attrs) ()))
+(define <ident> (class-make '<ident> '() '(name comment attrs) '()))
 
 (method-make! <ident> 'get-name (lambda (self) (elm-get self 'name)))
 (method-make! <ident> 'get-comment (lambda (self) (elm-get self 'comment)))
@@ -90,6 +90,10 @@
 (define (obj:name obj) (send obj 'get-name))
 (define (obj-set-name! obj name) (send obj 'set-name! name))
 (define (obj:comment obj) (send obj 'get-comment))
+
+; Utility to return the name as a string.
+
+(define (obj:str-name obj) (symbol->string (obj:name obj)))
 
 ; Utility to add standard access methods for name, comment, attrs.
 ; ??? Old.  Using <ident> baseclass now.
@@ -171,11 +175,13 @@
 ; FIXME: Isn't the plan to move ERRTXT to the 1st arg?
 
 (define (parse-name name errtxt)
-  (cond ((list? name)
-	 (string->symbol (string-map (lambda (elm) (parse-name elm errtxt)) name)))
-	((symbol? name) name)
-	((string? name) (string->symbol name))
-	(else (parse-error errtxt "improper name" name)))
+  (string->symbol
+   (let parse ((name name))
+     (cond
+      ((list? name) (string-map parse name))
+      ((symbol? name) (symbol->string name))
+      ((string? name) name)
+      (else (parse-error errtxt "improper name" name)))))
 )
 
 ; Parse an object comment.
@@ -187,7 +193,7 @@
   (cond ((list? comment)
 	 (string-map (lambda (elm) (parse-comment elm errtxt)) comment))
 	((or (string? comment) (symbol? comment))
-	 comment)
+	 (->string comment))
 	(else (parse-error errtxt "improper comment" comment)))
 )
 
@@ -195,16 +201,16 @@
 
 (define (parse-symbol context value)
   (if (and (not (symbol? value)) (not (string? value)))
-      (parse-error context "not a symbol" value))
-  value
+      (parse-error context "not a symbol or string" value))
+  (->symbol value)
 )
 
 ; Parse a string.
 
 (define (parse-string context value)
   (if (and (not (symbol? value)) (not (string? value)))
-      (parse-error context "not a string" value))
-  value
+      (parse-error context "not a string or symbol" value))
+  (->string value)
 )
 
 ; Parse a number.
@@ -261,7 +267,7 @@
        (not (null? x))
        (or (keyword? (car x))
 	   (and (symbol? (car x))
-		(char=? (string-ref (car x) 0) #\:))))
+		(char=? (string-ref (symbol->string (car x)) 0) #\:))))
 )
 
 ; Convert a list like (#:key1 val1 #:key2 val2 ...) to
@@ -281,7 +287,7 @@
 		 nil
 		 (cdr rkl)))
 	  ((and (symbol? (car rkl))
-		(char=? (string-ref (car rkl) 0) #\:))
+		(char=? (string-ref (symbol->string (car rkl)) 0) #\:))
 	   (loop (acons (string->symbol
 			 (substring (car rkl) 1 (string-length (car rkl))))
 			current result)
@@ -461,6 +467,64 @@
 
 ; Attributes
 
+; Return the C/C++ type to use to hold a value for attribute ATTR.
+
+(define (gen-attr-type attr)
+  (if (string=? (string-downcase (gen-sym attr)) "isa")
+      "CGEN_BITSET"
+      (case (attr-kind attr)
+	((boolean) "int")
+	((bitset)  "unsigned int")
+	((integer) "int")
+	((enum)    (string-append "enum " (string-downcase (gen-sym attr)) "_attr"))
+	))
+)
+
+; Return C macros for accessing an object's attributes ATTRS.
+; PREFIX is one of "cgen_ifld", "cgen_hw", "cgen_operand", "cgen_insn".
+; ATTRS is an alist of attribute values.  The value is unimportant except that
+; it is used to determine bool/non-bool.
+; Non-bools need to be separated from bools as they're each recorded
+; differently.  Non-bools are recorded in an int for each.  All bools are
+; combined into one int to save space.
+; ??? We assume there is at least one bool.
+
+(define (-gen-attr-accessors prefix attrs)
+  (string-append
+   "/* " prefix " attribute accessor macros.  */\n"
+   (string-map (lambda (attr)
+		 (string-append
+		  "#define CGEN_ATTR_"
+		  (string-upcase prefix)
+		  "_"
+		  (string-upcase (gen-sym attr))
+		  "_VALUE(attrs) "
+		  (if (bool-attr? attr)
+		      (string-append
+		       "(((attrs)->bool & (1 << "
+		       (string-upcase prefix)
+		       "_"
+		       (string-upcase (gen-sym attr))
+		       ")) != 0)")
+		      (string-append
+		       "((attrs)->nonbool["
+		       (string-upcase prefix)
+		       "_"
+		       (string-upcase (gen-sym attr))
+		       "-"
+		       (string-upcase prefix)
+		       "_START_NBOOLS-1]."
+		       (case (attr-kind attr)
+			 ((bitset)
+			  (if (string=? (string-downcase (gen-sym attr)) "isa")
+			      ""
+			      "non"))
+			 (else "non"))
+		       "bitset)"))
+		  "\n"))
+	       attrs)
+   "\n")
+)
 ; Return C code to declare an enum of attributes ATTRS.
 ; PREFIX is one of "cgen_ifld", "cgen_hw", "cgen_operand", "cgen_insn".
 ; ATTRS is an alist of attribute values.  The value is unimportant except that
@@ -487,7 +551,8 @@
 ; PREFIX is the prefix arg to gen-attr-enum-decl.
 
 (define (gen-attr-name prefix attr-name)
-  (string-upcase (gen-c-symbol (string-append prefix "_" attr-name)))
+  (string-upcase (gen-c-symbol (string-append prefix "_"
+					      (symbol->string attr-name))))
 )
 
 ; Normal gen-mask argument to gen-bool-attrs.
@@ -558,6 +623,27 @@
    ))
 )
 
+; Return the C definition of the terminating entry of an object's attributes.
+; ALL-ATTRS is an ordered alist of all attributes.
+; "ordered" means all the non-boolean attributes are at the front and
+; duplicate entries have been removed.
+
+(define (gen-obj-attr-end-defn all-attrs num-non-bools)
+  (let ((all-non-bools (list-take num-non-bools all-attrs)))
+    (string-append
+     "{ 0, {"
+     (if (null? all-non-bools)
+	 " { 0, 0 }"
+	 (string-drop1 ; drop the leading ","
+	  (string-map (lambda (attr)
+			(let ((val (attr-default attr)))
+					; FIXME: Are we missing attr-prefix here?
+			  (string-append ", "
+					 (send attr 'gen-value-for-defn val))))
+		      all-non-bools)))
+     " } }"
+     ))
+)
 ; Return a boolean indicating if ATLIST indicates a CTI insn.
 
 (define (atlist-cti? atlist)
@@ -623,22 +709,15 @@
    (backslash "\n" expr)
    ";} while (0)\n")
 )
+
+; Misc. object utilities.
 
-; Return C code to fetch a value from instruction memory.
-; PC-VAR is the C expression containing the address of the start of the
-; instruction.
-; ??? Aligned/unaligned support?
+; Sort a list of <ident> objects alphabetically.
 
-(define (gen-ifetch pc-var bitoffset bitsize)
-  (string-append "GETIMEM"
-		 (case bitsize
-		   ((8) "UQI")
-		   ((16) "UHI")
-		   ((32) "USI")
-		   (else (error "bad bitsize argument to gen-ifetch" bitsize)))
-		 " (current_cpu, "
-		 pc-var " + " (number->string (quotient bitoffset 8))
-		 ")")
+(define (alpha-sort-obj-list l)
+  (sort l
+	(lambda (o1 o2)
+	  (symbol<? (obj:name o1) (obj:name o2))))
 )
 
 ; Called before loading the .cpu file to initialize.
@@ -651,4 +730,27 @@ Mark an entry as being sanitized.
 		       nil '(keyword entry-type . entry-names) sanitize)
 
   *UNSPECIFIED*
+)
+
+; Return a pair of definitions for a C macro that concatenates its
+; argument symbols.  The definitions are conditional on ANSI C
+; semantics: one contains ANSI concat operators (##), and the other
+; uses the empty-comment trick (/**/).  We must do this, rather than
+; use CONCATn(...) as defined in include/symcat.h, in order to avoid
+; spuriously expanding our macro's args.
+
+(define (gen-define-with-symcat head . args)
+  (string-append
+   "\
+#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
+#define "
+   head (string-map (lambda (elm) (string-append "##" elm)) args)
+   "
+#else
+#define "
+   head (string-map (lambda (elm) (string-append "/**/" elm)) args)
+   "
+#endif
+"
+   )
 )

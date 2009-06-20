@@ -1,5 +1,5 @@
 ; General cpu info generator support.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2003 Red Hat, Inc.
 ; This file is part of CGEN.
 ;
 ; This file generates C versions of the more salient parts of the description
@@ -25,7 +25,7 @@
 		  attr
 		  (string-append "  { "
 				 "\""
-				 (string-upcase (obj:name attr))
+				 (string-upcase (obj:str-name attr))
 				 "\", "
 				 (if (class-instance? <boolean-attribute> attr)
 				     "&bool_attr[0], &bool_attr[0]"
@@ -121,12 +121,14 @@ static const CGEN_ATTR_ENTRY bool_attr[] =
     (string-drop -2 ; Delete trailing ",\n" [don't want the ,]
 		 (string-map (lambda (e)
 			       (string-append
-				"  { "
-				"\"" (car e) "\", " ; operand name
+				"  { \""
+				(->string (elm-get self 'prefix))
+				(->string (car e)) ; operand name
+				"\", "
 				(if (string? (cadr e))
 				    (cadr e)
 				    (number->string (cadr e))) ; value
-				", {0, {0}}, 0, 0"
+				", {0, {{{0, 0}}}}, 0, 0"
 				" },\n"
 				))
 			     (elm-get self 'values)))
@@ -136,7 +138,7 @@ static const CGEN_ATTR_ENTRY bool_attr[] =
     " =\n{\n"
     "  & " (gen-hw-asm-ref (elm-get self 'name)) "_entries[0],\n"
     "  " (number->string (length (elm-get self 'values))) ",\n"
-    "  0, 0, 0, 0\n"
+    "  0, 0, 0, 0, \"\"\n"
     "};\n\n"
     )
    )

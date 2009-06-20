@@ -49,12 +49,12 @@
      (sfmt-eg-insn sfmt) ; sanitize based on the example insn
      (string-append
       "static const CGEN_OPINST "
-      (gen-sym sfmt) "_ops[] = {\n"
+      (gen-sym sfmt) "_ops[] ATTRIBUTE_UNUSED = {\n"
       (string-map (lambda (op) (-gen-operand-instance op "INPUT"))
 		  ins)
       (string-map (lambda (op)  (-gen-operand-instance op "OUTPUT"))
 		  outs)
-      "  { END }\n};\n\n")))
+      "  { END, (const char *)0, (enum cgen_hw_type)0, (enum cgen_mode)0, (enum cgen_operand_type)0, 0, 0 }\n};\n\n")))
 )
 
 (define (-gen-operand-instance-tables)
@@ -62,20 +62,22 @@
    "\
 /* Operand references.  */
 
+"
+   (gen-define-with-symcat "OP_ENT(op) @ARCH@_OPERAND_" "op")
+"\
 #define INPUT CGEN_OPINST_INPUT
 #define OUTPUT CGEN_OPINST_OUTPUT
 #define END CGEN_OPINST_END
 #define COND_REF CGEN_OPINST_COND_REF
-#define OP_ENT(op) CONCAT2 (@ARCH@_OPERAND_,op)
 
 "
    (lambda () (string-write-map -gen-operand-instance-table (current-sfmt-list)))
    "\
+#undef OP_ENT
 #undef INPUT
 #undef OUTPUT
 #undef END
 #undef COND_REF
-#undef OP_ENT
 
 "
    )
@@ -152,7 +154,7 @@ void
 	))
 
   (string-write
-   (gen-copyright "Semantic operand instances for @arch@."
+   (gen-c-copyright "Semantic operand instances for @arch@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "\
 #include \"sysdep.h\"

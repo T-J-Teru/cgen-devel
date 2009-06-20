@@ -1,8 +1,15 @@
 ; Simulator model support, plus misc. things associated with a cpu family.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2003 Red Hat, Inc.
 ; This file is part of CGEN.
 
 ; Return C code to define cpu implementation properties.
+
+(define (unit:enum u)
+  (gen-c-symbol (string-append "UNIT_"
+			       (string-upcase (obj:str-name (unit:model u)))
+			       "_"
+			       (string-upcase (obj:str-name u))))
+)
 
 (define (-gen-cpu-imp-properties)
   (string-list
@@ -76,7 +83,7 @@ static const MACH_IMP_PROPERTIES @cpu@_imp_properties =
 (define (gen-model-fn-decls)
   (let ((gen-args (lambda (args)
 		    (gen-c-args (map (lambda (arg)
-				       (string-append
+				       (stringsym-append
 					(mode:c-type (mode:lookup (cadr arg)))
 					" /*" (car arg) "*/"))
 				     (find (lambda (arg)
@@ -91,7 +98,7 @@ static const MACH_IMP_PROPERTIES @cpu@_imp_properties =
      (string-list-map
       (lambda (model)
 	(string-list-map (lambda (unit)
-			   (string-append
+			   (stringsym-append
 			    "extern int "
 			    (gen-model-unit-fn-name model unit)
 			    " (SIM_CPU *, const IDESC *,"
@@ -219,7 +226,7 @@ static const MACH_IMP_PROPERTIES @cpu@_imp_properties =
 
 (define (-gen-model-timing-table model)
   (string-write
-   "/* Model timing data for `" (obj:name model) "'.  */\n\n"
+   "/* Model timing data for `" (obj:str-name model) "'.  */\n\n"
    "static const INSN_TIMING " (gen-sym model) "_timing[] = {\n"
    (lambda () (string-write-map (lambda (insn) (-gen-insn-timing model insn))
 				(non-alias-insns (current-insn-list))))
@@ -245,7 +252,7 @@ static const MACH_IMP_PROPERTIES @cpu@_imp_properties =
 static const MODEL " (gen-sym mach) "_models[] =\n{\n"
    (string-list-map (lambda (model)
 		      (string-list "  { "
-				   "\"" (obj:name model) "\", "
+				   "\"" (obj:str-name model) "\", "
 				   "& " (gen-sym (model:mach model)) "_mach, "
 				   (model:enum model) ", "
 				   "TIMING_DATA (& "
@@ -326,7 +333,7 @@ static void\n"
   CPU_PC_FETCH (cpu) = " (gen-sym (mach-cpu mach)) "_h_pc_get;
   CPU_PC_STORE (cpu) = " (gen-sym (mach-cpu mach)) "_h_pc_set;
   CPU_GET_IDATA (cpu) = @cpu@_get_idata;
-  CPU_MAX_INSNS (cpu) = @CPU@_INSN_MAX;
+  CPU_MAX_INSNS (cpu) = @CPU@_INSN__MAX;
   CPU_INSN_NAME (cpu) = cgen_insn_name;
   CPU_FULL_ENGINE_FN (cpu) = @cpu@_engine_run_full;
 #if WITH_FAST
@@ -338,7 +345,7 @@ static void\n"
 
 const MACH " (gen-sym mach) "_mach =
 {
-  \"" (obj:name mach) "\", "
+  \"" (obj:str-name mach) "\", "
   "\"" (mach-bfd-name mach) "\", "
   (mach-enum mach) ",\n"
   "  " (number->string (cpu-word-bitsize (mach-cpu mach))) ", "
@@ -360,7 +367,7 @@ const MACH " (gen-sym mach) "_mach =
 ; Generate model.c
 
 (define (cgen-model.c)
-  (logit 1 "Generating " (gen-cpu-name) " model.c ...\n")
+  (logit 1 "Generating " (gen-cpu-name) "'s model.c ...\n")
 
   (sim-analyze-insns!)
 
@@ -368,7 +375,7 @@ const MACH " (gen-sym mach) "_mach =
   (set-with-parallel?! (state-parallel-exec?))
 
   (string-write
-   (gen-copyright "Simulator model support for @cpu@."
+   (gen-c-copyright "Simulator model support for @cpu@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "\
 #define WANT_CPU @cpu@

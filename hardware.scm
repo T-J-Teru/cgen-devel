@@ -66,6 +66,10 @@
 		; or #f if not computed yet.
 		; This is a derived from the ISA attribute and is for speed.
 		(isas-cache . #f)
+
+		; Flag indicates whether this hw has been used in a (delay ...)
+		; rtl expression
+		(used-in-delay-rtl? . #f)
 		)
 	      nil)
 )
@@ -77,7 +81,7 @@
    ; ??? These might be more properly named hw-get/hw-set, but those names
    ; seem ambiguous.
    (get . getter) (set . setter)
-   isas-cache)
+   isas-cache used-in-delay-rtl?)
 )
 
 ; Mode,rank,shape support.
@@ -160,6 +164,15 @@
 
 (define (hw-isas hw) (send hw 'get-isas))
 
+; Was this hardware used in a (delay ...) rtl expression?
+
+(method-make!
+ <hardware-base> 'used-in-delay-rtl?
+ (lambda (self) (elm-get self 'used-in-delay-rtl?))
+)
+
+(define (hw-used-in-delay-rtl? hw) (send hw 'used-in-delay-rtl?))
+
 ; FIXME: replace pc?,memory?,register?,iaddress? with just one method.
 
 ; Return boolean indicating if hardware element is the PC.
@@ -216,7 +229,7 @@
 (define <keyword>
   (class-make '<keyword> '(<hw-asm>)
 	      '(
-		; Name to use in generated code.
+		; Name to use in generated code, as a string.
 		print-name
 
 		; Prefix of each name in VALUES, as a string.
@@ -312,7 +325,7 @@
 	    ; to make periphery C/C++ code more legible.
 	    (define-full-enum (obj:name kw) (obj:comment kw)
 	      (atlist-source-form (obj-atlist kw))
-	      (string-upcase (symbol-append (kw-print-name kw) '-))
+	      (string-upcase (string-append (kw-print-name kw) "-"))
 	      (kw-values kw))))
       kw))
 )
@@ -1019,6 +1032,13 @@
 			(memq new-mode-class '(INT UINT))))))))
 )
 
+; These are scalars.
+
+(method-make!
+ <hw-immediate> 'get-index-mode
+ (lambda (self) #f)
+)
+
 ; Addresses.
 ; These are usually symbols.
 
@@ -1071,6 +1091,27 @@
 
 (method-make! <hw-iaddress> 'iaddress? (lambda (self) #t))
 
+; Misc. random hardware support.
+
+; Map a mode to a hardware object that can contain immediate values of that
+; mode.
+
+(define (hardware-for-mode mode)
+  (cond ((mode:eq? mode 'AI) h-addr)
+	((mode:eq? mode 'IAI) h-iaddr)
+	((mode-signed? mode) h-sint)
+	((mode-unsigned? mode) h-uint)
+	(else (error "Don't know h-object for mode " mode)))
+)
+
+; Called when a cpu-family is read in to set the word sizes.
+; Must be called after mode-set-word-modes! has been called.
+
+(define (hw-update-word-modes!)
+  (elm-xset! h-addr 'type (make <scalar> (mode:lookup 'AI)))
+  (elm-xset! h-iaddr 'type (make <scalar> (mode:lookup 'IAI)))
+)
+
 ; Builtins, attributes, init/fini support.
 
 (define h-memory #f)
@@ -1078,17 +1119,6 @@
 (define h-uint #f)
 (define h-addr #f)
 (define h-iaddr #f)
-
-
-; Map a mode to a hardware object that can contain immediate values of that mode
-(define (hardware-for-mode mode)
-  (cond ((mode:eq? mode 'AI) h-addr)
-	((mode:eq? mode 'IAI) h-addr)
-	((mode-signed? mode) h-sint)
-	((mode-unsigned? mode) h-uint)
-	(else (error "Don't know h-object for mode " mode)))
-)
-
 
 ; Called before reading a .cpu file in.
 

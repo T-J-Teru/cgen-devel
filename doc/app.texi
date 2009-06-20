@@ -1,4 +1,4 @@
-@c Copyright (C) 2000 Red Hat, Inc.
+@c Copyright (C) 2000, 2009 Red Hat, Inc.
 @c This file is part of the CGEN manual.
 @c For copying conditions, see the file cgen.texi.
 
@@ -14,7 +14,7 @@ CGEN application.
 * File Generation Process::     Workflow in cgen
 * Coding Conventions::          Coding conventions
 * Accessing Loaded Data::       Reading data from loaded .cpu files
-* Name References::             Architecture names in generated code
+* Arch Name References::        Architecture names in generated code
 * String Building::             Building long strings and writing them out
 * COS::                         Cgen's Object System
 @end menu
@@ -27,12 +27,18 @@ number of source files grows the entire layout may be changed, but until then
 this is how things are.}  It makes it easy to find things.
 
 @itemize @bullet
+
 @item top level file is cgen-<app>.scm
+
 The best way to create this file is to copy an existing application's file
 (e.g. cgen-opc.scm) and modify to suit.
+
 @item file <app>.scm contains general app-specific utilities
+
 @item other files are <app>-foo.scm
+
 @item add entry to dev.scm (load-<app>)
+
 @end itemize
 
 @node File Generation Process
@@ -48,10 +54,15 @@ options
 @item source code is loaded
 
 @itemize @minus
+
 @item application independent code is loaded if not compiled in
+
 @item application specific code is loaded
 
 Currently app-specific code is never compiled in.
+@footnote{This dates from a time when CGEN supported being compiled with
+Hobbit.  That support is gone, though something else may take its place.}
+
 @itemize @minus
 @item doesn't affect speed as much as application independent stuff
 @item subject to more frequent changes
@@ -92,7 +103,7 @@ the code must write to @code{(current-output-port)}.
 
 Some files require heavy duty processing of the cpu description.
 For example the simulator computes the instruction formats from the
-instruction field lists of each instruction.  This computation is defered
+instruction field lists of each instruction.  This computation is deferred
 to each cgen-<file> procedure that needs it and must be explicitly requested
 by them.  The results are cached so this is only done once of course.
 
@@ -126,7 +137,7 @@ a line by itself beginning in column one
 @item definitions internal to a source file begin with '-'
 @item global state variables are named *foo-bar*
 [FIXME: current code needs updating]
-@item avoid uppercase (except for ???)
+@item avoid uppercase, except for constants (e.g. @code{*UNSPECIFIED*})
 @item procedures that return a boolean result end in '?'
 @item procedures that modify something end in '!'
 @item classes are named <name>
@@ -138,7 +149,7 @@ a line by itself beginning in column one
 Each kind of description file entry (defined with `define-foo') is recorded
 in an object of class <foo>.@footnote{not true for <arch> but will be RSN}
 All the data is collected together in an object of class
-<system>.@footnote{got a better name?}
+<arch>.
 @footnote{modes aren't recorded here, should they be?}
 
 Data for the currently selected architecture is obtained with several
@@ -156,7 +167,7 @@ access functions.
   - return the attributes specified with `define-arch'
 
   (current-arch-default-alignment)
-  - return a symbol indicated the default aligment
+  - return a symbol indicated the default alignment
     - one of aligned, unaligned, forced
 
   (current-arch-insn-lsb0?)
@@ -169,8 +180,8 @@ access functions.
   (current-arch-isa-name-list)
   - return a list of names (as symbols) of all isas in the architecture
 
-  - for most of the remaining elements, there are three main accessors
-    [foo is sometimes abbreviated]
+  For most of the remaining elements, there are three main accessors:
+  [foo is sometimes abbreviated]
     - current-foo-list - returns list of <foo> objects in the architecture
     - current-foo-add! - add a <foo> object to the architecture
     - current-foo-lookup - lookup the <foo> object based on its name
@@ -244,8 +255,8 @@ access functions.
   [there are a few more to be documented, not sure they'll remain as is]
 @end smallexample
 
-@node Name References
-@section Name References
+@node Arch Name References
+@section Arch Name References
 
 To simplify writing code generators, system names can be
 specified with fixed strings rather than having to compute them.
@@ -273,14 +284,14 @@ and thunks as arguments and writes each argument in turn to stdout.
 String-lists are lists of strings (nested arbitrarily deep).  It's cheaper
 to @code{cons} long strings together than to use @code{string-append}.
 Thunks return string-lists to write out, but isn't computed until all
-preceeding arguments to `string-write' have been written out.  This allows
-defering building up of large amounts of text until it needs to be.
+preceding arguments to `string-write' have been written out.  This allows
+deferring building up of large amounts of text until it needs to be.
 
 The main procedures for building strings and writing them out are:
 
 @itemize @bullet
 
-@item (string-write string-list-or-thunk1 string-list-or-thunk2 ...)
+@item (string-write string-list-or-thunk1 string-list-or-thunk2 @dots{})
 
 Loops over arguments writing them out in turn.
 
@@ -289,7 +300,7 @@ Loops over arguments writing them out in turn.
 Apply proc to each element in string-list-or-thunk-list and write out
 the result.
 
-@item (string-list arg1 arg2 ...)
+@item (string-list arg1 arg2 @dots{})
 
 Return list of arguments.  This is identical to @code{list} except it
 is intended to take string-lists as arguments.
@@ -300,25 +311,28 @@ Return list of @code{proc} applied to each element of @code{arg-list}.
 This is identical to @code{map} except it is intended to take strings
 as arguments.
 
-@item (string-append string1 string2 ...)
+@item (string-append string1 string2 @dots{})
 
 For small arguments it's just as well to use @code{string-append}.
 This is a standard Scheme procedure.  The output is also easier to read
 when developing interactively.  And some subroutines are used in multiple
-contexts including some where strings are required.
+contexts including some where strings are required, so sometimes you
+have to use @code{string-append}.
 
 @end itemize
 
 @node COS
 @section COS
 
-COS is Cgen's Object System.  It's a simple OO system for Guile that
+COS is CGEN's Object System.  It's a simple OO system for Guile that
 was written to provide something useful until Guile had its own.
-COS will be replaced with GOOPs if the Scheme implementation of cgen is kept.
+COS will be replaced with GOOPs if the Scheme implementation of CGEN is kept.
 
 The pure Scheme implementation of COS uses vectors to record objects and
-classes.  The C implementation uses smobs (though classes are still
-implemented with vectors).
+classes.
+@c There no longer is a C implementation, but keep this for awhile.
+@c The C implementation uses smobs (though classes are still
+@c implemented with vectors).
 
 A complete list of user-visible functions is at the top of @file{cos.scm}.
 
@@ -333,8 +347,8 @@ Use @code{class-make} to define a class.
 @smallexample
 name: symbol, <name-of-class>
 parent-name-list: list of symbols, names of each parent class
-element-list: list of either symbols or (symbol . initial-value)
-method-list: list of (symbol . lambda)
+element-list: list of either symbols or (symbol .@: initial-value)
+method-list: list of (symbol .@: lambda)
 @end smallexample
 
 The result is the class's definition.  It is usually assigned to a global
@@ -362,7 +376,7 @@ This is a macro so don't quote anything.
 
 Write accessors are defined with @code{define-setters}, which
 creates one procedure for each element, each defined as
-@code{(prefix-set-element-name! object new-value)}.
+@code{(prefix-set-element-name!@: object new-value)}.
 
 This is a macro so don't quote anything.
 
@@ -370,7 +384,7 @@ This is a macro so don't quote anything.
 
 This can only be used in method definitions (blech, blah blah blah).
 
-@item (elm-set! object elm-name new-value)
+@item (elm-set!@: object elm-name new-value)
 
 This can only be used in method definitions (blech, blah blah blah).
 
@@ -386,18 +400,18 @@ The convention is to put this in a cover fn:
 Same as @code{send} except only usable in methods and is used to invoke
 the method in the parent class.
 
-@item (make object . args)
+@item (make object .@: args)
 
 One standard way to create a new object is with @code{make}.
 It is a wrapper, defined as
 
 @smallexample
-(define (make object . args)
-  (apply send (cons (new object) (cons 'make! args)))
+(define (make object .@: args)
+  (apply send (cons (new object) (cons 'make!@: args)))
 )
 @end smallexample
 
-@item (vmake class . args)
+@item (vmake class .@: args)
 
 The other standard way to create objects is with @code{vmake}.
 
@@ -405,16 +419,16 @@ The other standard way to create objects is with @code{vmake}.
 
 ??? Not completely implemented yet.
 
-@item (method-make! class method-name lambda)
+@item (method-make!@: class method-name lambda)
 
 The normal way of creating methods is to use @code{method-make!}, not define
 them with the class.  It's just easier to define them separately.
 
-@item (method-make-virtual! class method-name lambda)
+@item (method-make-virtual!@: class method-name lambda)
 
 Create virtual methods created with @code{method-make-virtual!}.
 
-@item (method-make-forward! class elm-name methods) -> unspecified
+@item (method-make-forward!@: class elm-name methods) -> unspecified
 
 Forwarding a method invocation on one object to another is extremely
 useful so some utilities have been created to simplify creating forwarding
@@ -425,6 +439,6 @@ that forwards the method onto the object contained in element ELM-NAME.
 
 @item (method-make-virtual-forward!)
 
-Same as method-make-forward! except that it creates virtual methods.
+Same as method-make-forward!@: except that it creates virtual methods.
 
 @end itemize

@@ -1,5 +1,5 @@
 ; Operands
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2001, 2005 Red Hat, Inc.
 ; This file is part of CGEN.
 ; See file COPYING.CGEN for details.
 
@@ -26,6 +26,10 @@
 		; A more important reason is to help match semantic operands
 		; with function unit input/output arguments.
 		sem-name
+
+		; Pretty name as used in tracing code.
+		; Generally this is the same as the hardware element's name.
+		pretty-sem-name
 
 		; Semantic name of hardware element refered to by this operand.
 		hw-name
@@ -86,6 +90,9 @@
 		; referenced.  #f means the operand is always referenced by
 		; the instruction.
 		(cond? . #f)
+		
+		; whether (and by how much) this instance of the operand is delayed.
+		(delayed . #f)
 		)
 	      nil)
 )
@@ -97,6 +104,7 @@
  (lambda (self name comment attrs hw-name mode-name index handlers getter setter)
    (elm-set! self 'name name)
    (elm-set! self 'sem-name name)
+   (elm-set! self 'pretty-sem-name hw-name)
    (elm-set! self 'comment comment)
    (elm-set! self 'attrs attrs)
    (elm-set! self 'hw-name hw-name)
@@ -117,6 +125,7 @@
 
 (define op:sem-name (elm-make-getter <operand> 'sem-name))
 (define op:set-sem-name! (elm-make-setter <operand> 'sem-name))
+(define op:set-pretty-sem-name! (elm-make-setter <operand> 'pretty-sem-name))
 (define op:hw-name (elm-make-getter <operand> 'hw-name))
 (define op:mode-name (elm-make-getter <operand> 'mode-name))
 (define op:selector (elm-make-getter <operand> 'selector))
@@ -129,6 +138,8 @@
 (define op:set-num! (elm-make-setter <operand> 'num))
 (define op:cond? (elm-make-getter <operand> 'cond?))
 (define op:set-cond?! (elm-make-setter <operand> 'cond?))
+(define op:delay (elm-make-getter <operand> 'delayed))
+(define op:set-delay! (elm-make-setter <operand> 'delayed))
 
 ; Compute the hardware type lazily.
 ; FIXME: op:type should be named op:hwtype or some such.
@@ -215,7 +226,11 @@
 (method-make!
  <operand> 'gen-pretty-name
  (lambda (self mode)
-   (let* ((name (op:sem-name self))
+   (let* ((name (->string (if (elm-bound? self 'pretty-sem-name)
+			      (elm-get self 'pretty-sem-name) 
+			      (if (elm-bound? self 'sem-name)
+				  (elm-get self 'sem-name)
+				  (obj:name self)))))
 	  (pname (cond ((string=? "h-memory" (string-take 8 name)) "memory")
 		       ((string=? "h-" (string-take 2 name)) (string-drop 2 name))
 		       (else name))))
@@ -253,6 +268,7 @@
 ; Mode support.
 
 ; Create a copy of operand OP in mode NEW-MODE-NAME.
+; NOTE: Even if the mode isn't changing this creates a copy.
 ; If OP has been subclassed the result must contain the complete class
 ; (e.g. the behaviour of `object-copy-top').
 
@@ -274,13 +290,21 @@
 	      (if (not new-mode)
 		  (error "op:new-mode: internal error, bad mode"
 			 new-mode-name))
+	      (elm-xset! result 'mode-name new-mode-name)
 	      (elm-xset! result 'mode new-mode)
 	      result)
 	    (parse-error "op:new-mode"
 			 (string-append "invalid mode for operand `"
-					(obj:name op)
+					(->string (obj:name op))
 					"'")
 			 new-mode-name))))
+)
+
+; Return #t if operand OP references its h/w element in its natural mode.
+
+(define (op-natural-mode? op)
+  (or (eq? (op:mode-name op) 'DFLT)
+      (mode-compatible? 'samesize (op:mode op) (hw-default-mode (op:type op))))
 )
 
 ; Ifield support.
@@ -697,7 +721,7 @@
 		; Assertions of any ifield values or #f if none.
 		(ifield-assertion . #f)
 		)
-	      ())
+	      '())
 )
 
 (method-make-make! <derived-operand>
@@ -727,7 +751,7 @@
 		; ??? Maybe allow <operand>'s too?
 		choices
 		)
-	      ())
+	      '())
 )
 
 (define (anyof-operand? x) (class-instance? <anyof-operand> x))
@@ -766,7 +790,7 @@
   (let ((iflds (-parse-insn-format "anyof encoding" encoding)))
     (make <derived-ifield>
 	  operand-name
-	  (string-append "<derived-ifield> for " operand-name)
+	  'derived-ifield ; (string-append "<derived-ifield> for " operand-name)
 	  atlist-empty
 	  #f ; owner
 	  iflds ; subfields
@@ -846,9 +870,11 @@
 						  (length args)))
 		       )))
 	    (elm-set! result 'hw-name (obj:name (hardware-for-mode mode-obj)))
+	    ;(elm-set! result 'hw-name (obj:name parsed-encoding))
+	    ;(elm-set! result 'hw-name base-ifield)
 	    (elm-set! result 'index parsed-encoding)
 	    ; (elm-set! result 'index (hw-index-derived)) ; A temporary dummy
-	    (logit 1 "new derived-operand; name=" name " hw-name= " (op:hw-name result) 
+	    (logit 2 "new derived-operand; name=" name " hw-name= " (op:hw-name result) 
 		   " index=" (obj:name parsed-encoding) "\n")
 	    (derived-ifield-set-owner! parsed-encoding result)
 	    result))
@@ -1094,7 +1120,9 @@
 			(if (anyof-operand? e)
 			    (let* ((name (obj:name e))
 				   (indx (element-lookup-index name value-names 0)))
-			      (assert indx)
+			      (if (not indx)
+				(error "Name " name " not one of " values)
+				)
 			      (-anyof-syntax (list-ref values indx)))
 			    e))
 		      syntax-elements)))
@@ -1460,10 +1488,7 @@
   (if (null? op-list)
       (error "op-sort: no operands!"))
   ; First sort by name.
-  (let ((sorted-ops (sort op-list
-			  (lambda (a b)
-			     (string<? (obj:name a) (obj:name b)))))
-	)
+  (let ((sorted-ops (alpha-sort-obj-list op-list)))
     (let loop ((result nil)
 	       ; Current set of operands with same name.
 	       (this-elm (list (car sorted-ops)))
@@ -1536,8 +1561,10 @@ Define an anyof operand, name/value pair list version.
 
   (define-attr '(for operand) '(type boolean) '(name NEGATIVE)
     '(comment "value is negative"))
+
+  ; Operand plays a part in RELAXABLE/RELAXED insns.
   (define-attr '(for operand) '(type boolean) '(name RELAX)
-    '(comment "operand is relaxable"))
+    '(comment "operand is the relax participant"))
 
   ; ??? Might be able to make SEM-ONLY go away (or machine compute it)
   ; by scanning which operands are refered to by the insn syntax strings.

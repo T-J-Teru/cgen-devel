@@ -1,5 +1,5 @@
 ; Instruction builder support.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2001, 2005 Red Hat, Inc.
 ; This file is part of CGEN.
 
 ; Instruction field support.
@@ -8,16 +8,18 @@
   (logit 2 "Generating field get switch ...\n")
   (string-list
    "\
+int @arch@_cgen_get_int_operand     (CGEN_CPU_DESC, int, const CGEN_FIELDS *);
+bfd_vma @arch@_cgen_get_vma_operand (CGEN_CPU_DESC, int, const CGEN_FIELDS *);
+
 /* Getting values from cgen_fields is handled by a collection of functions.
    They are distinguished by the type of the VALUE argument they return.
    TODO: floating point, inlining support, remove cases where result type
    not appropriate.  */
 
 int
-@arch@_cgen_get_int_operand (cd, opindex, fields)
-     CGEN_CPU_DESC cd;
-     int opindex;
-     const CGEN_FIELDS * fields;
+@arch@_cgen_get_int_operand (CGEN_CPU_DESC cd ATTRIBUTE_UNUSED,
+			     int opindex,
+			     const CGEN_FIELDS * fields)
 {
   int value;
 
@@ -37,10 +39,9 @@ int
 }
 
 bfd_vma
-@arch@_cgen_get_vma_operand (cd, opindex, fields)
-     CGEN_CPU_DESC cd;
-     int opindex;
-     const CGEN_FIELDS * fields;
+@arch@_cgen_get_vma_operand (CGEN_CPU_DESC cd ATTRIBUTE_UNUSED,
+			     int opindex,
+			     const CGEN_FIELDS * fields)
 {
   bfd_vma value;
 
@@ -65,17 +66,19 @@ bfd_vma
   (logit 2 "Generating field set switch ...\n")
   (string-list
    "\
+void @arch@_cgen_set_int_operand  (CGEN_CPU_DESC, int, CGEN_FIELDS *, int);
+void @arch@_cgen_set_vma_operand  (CGEN_CPU_DESC, int, CGEN_FIELDS *, bfd_vma);
+
 /* Stuffing values in cgen_fields is handled by a collection of functions.
    They are distinguished by the type of the VALUE argument they accept.
    TODO: floating point, inlining support, remove cases where argument type
    not appropriate.  */
 
 void
-@arch@_cgen_set_int_operand (cd, opindex, fields, value)
-     CGEN_CPU_DESC cd;
-     int opindex;
-     CGEN_FIELDS * fields;
-     int value;
+@arch@_cgen_set_int_operand (CGEN_CPU_DESC cd ATTRIBUTE_UNUSED,
+			     int opindex,
+			     CGEN_FIELDS * fields,
+			     int value)
 {
   switch (opindex)
     {
@@ -91,11 +94,10 @@ void
 }
 
 void
-@arch@_cgen_set_vma_operand (cd, opindex, fields, value)
-     CGEN_CPU_DESC cd;
-     int opindex;
-     CGEN_FIELDS * fields;
-     bfd_vma value;
+@arch@_cgen_set_vma_operand (CGEN_CPU_DESC cd ATTRIBUTE_UNUSED,
+			     int opindex,
+			     CGEN_FIELDS * fields,
+			     bfd_vma value)
 {
   switch (opindex)
     {
@@ -161,6 +163,9 @@ void
   (logit 2 "Generating insert switch ...\n")
   (string-list
    "\
+const char * @arch@_cgen_insert_operand
+  (CGEN_CPU_DESC, int, CGEN_FIELDS *, CGEN_INSN_BYTES_PTR, bfd_vma);
+
 /* Main entry point for operand insertion.
 
    This function is basically just a big switch statement.  Earlier versions
@@ -173,16 +178,14 @@ void
    This function could be moved into `parse_insn_normal', but keeping it
    separate makes clear the interface between `parse_insn_normal' and each of
    the handlers.  It's also needed by GAS to insert operands that couldn't be
-   resolved during parsing.
-*/
+   resolved during parsing.  */
 
 const char *
-@arch@_cgen_insert_operand (cd, opindex, fields, buffer, pc)
-     CGEN_CPU_DESC cd;
-     int opindex;
-     CGEN_FIELDS * fields;
-     CGEN_INSN_BYTES_PTR buffer;
-     bfd_vma pc;
+@arch@_cgen_insert_operand (CGEN_CPU_DESC cd,
+			     int opindex,
+			     CGEN_FIELDS * fields,
+			     CGEN_INSN_BYTES_PTR buffer,
+			     bfd_vma pc ATTRIBUTE_UNUSED)
 {
   const char * errmsg = NULL;
   unsigned int total_length = CGEN_FIELDS_BITSIZE (fields);
@@ -207,6 +210,9 @@ const char *
   (logit 2 "Generating extract switch ...\n")
   (string-list
    "\
+int @arch@_cgen_extract_operand
+  (CGEN_CPU_DESC, int, CGEN_EXTRACT_INFO *, CGEN_INSN_INT, CGEN_FIELDS *, bfd_vma);
+
 /* Main entry point for operand extraction.
    The result is <= 0 for error, >0 for success.
    ??? Actual values aren't well defined right now.
@@ -220,17 +226,15 @@ const char *
 
    This function could be moved into `print_insn_normal', but keeping it
    separate makes clear the interface between `print_insn_normal' and each of
-   the handlers.
-*/
+   the handlers.  */
 
 int
-@arch@_cgen_extract_operand (cd, opindex, ex_info, insn_value, fields, pc)
-     CGEN_CPU_DESC cd;
-     int opindex;
-     CGEN_EXTRACT_INFO *ex_info;
-     CGEN_INSN_INT insn_value;
-     CGEN_FIELDS * fields;
-     bfd_vma pc;
+@arch@_cgen_extract_operand (CGEN_CPU_DESC cd,
+			     int opindex,
+			     CGEN_EXTRACT_INFO *ex_info,
+			     CGEN_INSN_INT insn_value,
+			     CGEN_FIELDS * fields,
+			     bfd_vma pc)
 {
   /* Assume success (for those operands that are nops).  */
   int length = 1;
@@ -262,8 +266,7 @@ int
 /* Function to call before using the instruction builder tables.  */
 
 void
-@arch@_cgen_init_ibld_table (cd)
-     CGEN_CPU_DESC cd;
+@arch@_cgen_init_ibld_table (CGEN_CPU_DESC cd)
 {
   cd->insert_handlers = & @arch@_cgen_insert_handlers[0];
   cd->extract_handlers = & @arch@_cgen_extract_handlers[0];
@@ -285,14 +288,14 @@ void
 (define (cgen-ibld.h)
   (logit 1 "Generating " (current-arch-name) "-ibld.h ...\n")
   (string-write
-   (gen-copyright "Instruction builder for @arch@."
+   (gen-c-copyright "Instruction builder for @arch@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "\
 #ifndef @ARCH@_IBLD_H
 #define @ARCH@_IBLD_H
 
 "
-   (lambda () (gen-extra-ibld.h srcdir (current-arch-name))) ; from <arch>.opc
+   (lambda () (gen-extra-ibld.h (opc-file-path) (current-arch-name)))
    "\n"
    gen-insn-builders
    "

@@ -1,5 +1,5 @@
 ; Simulator generator support routines.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2001, 2002, 2006 Red Hat, Inc.
 ; This file is part of CGEN.
 
 ; One goal of this file is to provide cover functions for all methods.
@@ -42,7 +42,9 @@
 ;	and doing a post-semantics writeback pass.
 ; with-parallel-only
 ;	Only generate parallel versions of each insn.
-; copyright fsf|cygnus
+; with-multiple-isa
+;	Enable multiple-isa support (eg. arm+thumb).
+; copyright fsf|redhat
 ;	emit an FSF or Cygnus copyright (temporary, pending decision)
 ; package gnusim|cygsim
 ;	indicate the software package
@@ -60,6 +62,10 @@
 (define -with-profile? #f)
 (define (with-profile?) -with-profile?)
 (define (with-any-profile?) (or -with-profile-fn? -with-profile-sw?))
+
+; #t if multiple isa support is enabled
+(define -with-multiple-isa? #f)
+(define (with-multiple-isa?) -with-multiple-isa?)
 
 ; Handle parallel execution with generic writeback pass.
 (define -with-generic-write? #f)
@@ -81,6 +87,7 @@
   (set! -with-scache? #f)
   (set! -with-profile-fn? #f)
   (set! -with-profile-sw? #f)
+  (set! -with-multiple-isa? #f)
   (set! -with-generic-write? #f)
   (set! -with-parallel-only? #f)
   (set! CURRENT-COPYRIGHT copyright-fsf)
@@ -98,17 +105,18 @@
 			  ((equal? value '("sw"))
 			   (set! -with-profile-sw? #t))
 			  (else (error "invalid with-profile value" value))))
+    ((with-multiple-isa) (set! -with-multiple-isa? #t))
     ((with-generic-write) (set! -with-generic-write? #t))
     ((with-parallel-only) (set! -with-parallel-only? #t))
     ((copyright) (cond ((equal?  value '("fsf"))
 			(set! CURRENT-COPYRIGHT copyright-fsf))
-		       ((equal? value '("cygnus"))
-			(set! CURRENT-COPYRIGHT copyright-cygnus))
+		       ((equal? value '("redhat"))
+			(set! CURRENT-COPYRIGHT copyright-red-hat))
 		       (else (error "invalid copyright value" value))))
     ((package) (cond ((equal?  value '("gnusim"))
 		      (set! CURRENT-PACKAGE package-gnu-simulators))
 		     ((equal? value '("cygsim"))
-		      (set! CURRENT-PACKAGE package-cygnus-simulators))
+		      (set! CURRENT-PACKAGE package-red-hat-simulators))
 		     (else (error "invalid package value" value))))
     (else (error "unknown option" name))
     )
@@ -152,6 +160,24 @@
   (string-append c-cpu-macro " (" sym ")")
 )
 
+
+; Return C code to fetch a value from instruction memory.
+; PC-VAR is the C expression containing the address of the start of the
+; instruction.
+; ??? Aligned/unaligned support?
+
+(define (gen-ifetch pc-var bitoffset bitsize)
+  (string-append "GETIMEM"
+		 (case bitsize
+		   ((8) "UQI")
+		   ((16) "UHI")
+		   ((32) "USI")
+		   (else (error "bad bitsize argument to gen-ifetch" bitsize)))
+		 " (current_cpu, "
+		 pc-var " + " (number->string (quotient bitoffset 8))
+		 ")")
+)
+
 ; Instruction field support code.
 
 ; Return a <c-expr> object of the value of an ifield.
@@ -296,7 +322,7 @@
 ;                 ??? Could just call this gen-set as there is no gen-set-trace
 ;                 but for consistency with the messages passed to operands
 ;                 we use this same.
-; gen-type      - C type to use to record value.
+; gen-type      - C type to use to record value, as a string.
 ;                 ??? Delete and just use get-mode?
 ; save-index?   - return #t if an index needs to be saved for parallel
 ;                 execution post-write processing
@@ -651,7 +677,7 @@
 
 (define (gen-reg-access-defn hw prefix type scalar? get-code set-code)
   (string-append
-   "/* Get the value of " (obj:name hw) ".  */\n\n"
+   "/* Get the value of " (obj:str-name hw) ".  */\n\n"
    type "\n"
    (gen-reg-getter-fn hw prefix)
    " (SIM_CPU *current_cpu"
@@ -659,7 +685,7 @@
    ")\n{\n"
    get-code
    "}\n\n"
-   "/* Set a value for " (obj:name hw) ".  */\n\n"
+   "/* Set a value for " (obj:str-name hw) ".  */\n\n"
    "void\n"
    (gen-reg-setter-fn hw prefix)
    " (SIM_CPU *current_cpu, "
@@ -680,7 +706,7 @@
 		   mode))
 	 (default-selector? (hw-selector-default? selector)))
      (cx:make mode
-	      (string-append "GETMEM" (obj:name mode)
+	      (string-append "GETMEM" (obj:str-name mode)
 			     (if default-selector? "" "ASI")
 			     " ("
 			     "current_cpu, pc, "
@@ -699,7 +725,7 @@
 		   (hw-mode self)
 		   mode))
 	 (default-selector? (hw-selector-default? selector)))
-     (string-append "SETMEM" (obj:name mode)
+     (string-append "SETMEM" (obj:str-name mode)
 		    (if default-selector? "" "ASI")
 		    " ("
 		    "current_cpu, pc, "
@@ -1075,11 +1101,11 @@
 	   ((op:getter self)
 	    (let ((args (car (op:getter self)))
 		  (expr (cadr (op:getter self))))
-	      (rtl-c mode expr
-		     (if (= (length args) 0)
-			 nil
-			 (list (list (car args) 'UINT index)))
-		     #:rtl-cover-fns? #t)))
+	      (rtl-c-expr mode expr
+			  (if (= (length args) 0)
+			      nil
+			      (list (list (car args) 'UINT index)))
+			  #:rtl-cover-fns? #t)))
 	   (else
 	    (send (op:type self) 'cxmake-get estate mode index selector)))))
 )
@@ -1118,9 +1144,9 @@
 	     (if setter
 		 "fn_"
 		 "")
-	     (string-downcase (if sem-mode
+	     (string-downcase (symbol->string (if sem-mode
 				  (mode-real-name sem-mode)
-				  (mode-real-name mode))))))
+				  (mode-real-name mode)))))))
      "_write (current_cpu"
      ; ??? May need to include h/w id some day.
      (if setter
@@ -1157,8 +1183,20 @@
   (string-append
    "  {\n"
    "    " (mode:c-type mode) " opval = " (cx:c newval) ";\n"
-   "    " (send (op:type op) 'gen-set-quiet estate mode index selector
-		(cx:make-with-atlist mode "opval" (cx:atlist newval)))
+   ; Dispatch to setter code if appropriate
+   "    "
+   (if (op:setter op)
+       (let ((args (car (op:setter op)))
+	     (expr (cadr (op:setter op))))
+	 (rtl-c 'VOID expr
+		(if (= (length args) 0)
+		    (list (list 'newval mode "opval"))
+		    (list (list (car args) 'UINT index)
+			  (list 'newval mode "opval")))
+		#:rtl-cover-fns? #t))
+       ;else
+       (send (op:type op) 'gen-set-quiet estate mode index selector
+	     (cx:make-with-atlist mode "opval" (cx:atlist newval))))
    (if (op:cond? op)
        (string-append "    written |= (1 << "
 		      (number->string (op:num op))
@@ -1303,8 +1341,7 @@
    (if (hw-scalar? (op:type self))
        ""
        (string-append "      "
-		      (gen-argbuf-ref (string-append (if out? "out_" "in_")
-						      (gen-sym self)))
+		      (gen-argbuf-ref (send self 'sbuf-profile-sym out?))
 		      " = "
 		      (send (op:type self) 'gen-record-profile
 			    (op:index self) sfmt estate)
@@ -1326,8 +1363,7 @@
 		      ""
 		      (string-append ", "
 				     (gen-argbuf-ref
-				      (string-append (if out? "out_" "in_")
-						     (gen-sym self)))))
+				      (send self 'sbuf-profile-sym out?))))
 		  ");\n"))
 )
 
@@ -1336,9 +1372,9 @@
 ; Return the declaration of the cpu/insn enum.
 
 (define (gen-cpu-insn-enum-decl cpu insn-list)
-  (gen-enum-decl "@cpu@_insn_type"
+  (gen-enum-decl "@prefix@_insn_type"
 		 "instructions in cpu family @cpu@"
-		 "@CPU@_INSN_"
+		 "@PREFIX@_INSN_"
 		 (append! (map (lambda (i)
 				 (cons (obj:name i)
 				       (cons '-
@@ -1356,7 +1392,7 @@
 							 (atlist-attrs (obj-atlist i))))))
 					  (parallel-insns insn-list)))
 			      nil)
-			  (list '(max))))
+			  (list '(-max))))
 )
 
 ; Return the enum of INSN in cpu family CPU.
@@ -1365,7 +1401,7 @@
 ; cache efficiently (since the IDESC table is similarily collapsed).
 
 (define (gen-cpu-insn-enum cpu insn)
-  (string-upcase (string-append "@CPU@_INSN_" (gen-sym insn)))
+  (string-upcase (string-append "@PREFIX@_INSN_" (gen-sym insn)))
 )
 
 ; Return C code to declare the machine data.
@@ -1440,7 +1476,9 @@
 			 (if (null? timing)
 			     '(1)
 			     (map (lambda (insn-timing)
-				    (length (timing:units (cdr insn-timing))))
+				    (if (null? (cdr insn-timing))
+					'1
+					(length (timing:units (cdr insn-timing)))))
 				  timing))))
 		     (current-insn-list)))))
    ")\n\n"
@@ -1537,14 +1575,13 @@
 			       (not (insn-op-lookup (car arg) insn
 						    (if out? 'out 'in))))
 			      ""
-			      (string-append "    "
-					     (if out? "out_" "in_")
-					     (gen-c-symbol (car arg))
-					     " = "
-					     (gen-argbuf-ref
-					      (string-append (if out? "out_" "in_")
-							     (gen-c-symbol (car arg))))
-					     ";\n"))))
+			      (let ((sym (gen-profile-sym (gen-c-symbol (car arg))
+							   out?)))
+				(string-append "    "
+					       sym
+					       " = "
+					       (gen-argbuf-ref sym)
+					       ";\n")))))
 
 	  ; Return C code to declare variable to hold unit argument ARG.
 	  ; OUT? is #f for input args, #t for output args.
@@ -1554,8 +1591,8 @@
 			      (string-append "    "
 					     (mode:c-type (mode:lookup (cadr arg)))
 					     " "
-					     (if out? "out_" "in_")
-					     (gen-c-symbol (car arg))
+					     (gen-profile-sym (gen-c-symbol (car arg))
+							      out?)
 					     " = "
 					     (if (null? (cddr arg))
 						 "0"
@@ -1568,8 +1605,8 @@
 			 (if (null? (cdr arg)) ; ignore scalars
 			     ""
 			     (string-append ", "
-					    (if out? "out_" "in_")
-					    (gen-c-symbol (car arg))))))
+					    (gen-profile-sym (gen-c-symbol (car arg))
+							     out?)))))
 	  )
 
      (string-list
@@ -1607,24 +1644,20 @@
 		      ((cycles) "")
 		      ((in)
 		       (if (caddr arg)
-			   (string-append "    in_"
-					  (gen-c-symbol (cadr arg))
+			   (string-append "    "
+					  (gen-profile-sym (gen-c-symbol (cadr arg)) #f)
 					  " = "
 					  (gen-argbuf-ref
-					   (string-append
-					    "in_"
-					    (gen-c-symbol (caddr arg))))
+					   (gen-profile-sym (gen-c-symbol (caddr arg)) #f))
 					  ";\n")
 			   ""))
 		      ((out)
 		       (if (caddr arg)
-			   (string-append "    out_"
-					  (gen-c-symbol (cadr arg))
+			   (string-append "    "
+					  (gen-profile-sym (gen-c-symbol (cadr arg)) #t)
 					  " = "
 					  (gen-argbuf-ref
-					   (string-append
-					    "out_"
-					    (gen-c-symbol (caddr arg))))
+					   (gen-profile-sym (gen-c-symbol (caddr arg)) #t))
 					  ";\n")
 			   ""))
 		      (else
@@ -1637,8 +1670,8 @@
 		  (iota (length inputs)))
       (string-map (lambda (arg num) (gen-ref-arg arg num 'out))
 		  outputs
-		  (iota (length inputs)
-			(length outputs)))
+		  (iota (length outputs)
+			(length inputs)))
       ; Emit the call to the handler.
       "    " cycles-var-name " += "
       (gen-model-unit-fn-name (unit:model self) self)
@@ -1803,7 +1836,7 @@ struct scache {
   (string-append
    "const char *mode_names[] = {\n"
    (string-map (lambda (m)
-		 (string-append "  \"" (string-upcase (obj:name m)) "\",\n"))
+		 (string-append "  \"" (string-upcase (obj:str-name m)) "\",\n"))
 	       ; We don't treat aliases as being different from the real
 	       ; mode here, so ignore them.
 	       (mode-list-non-alias-values))
@@ -1861,7 +1894,7 @@ struct scache {
 
 (define (sim-finish!)
   ; Add begin,chain,before,after,invalid handlers if not provided.
-  ; The code generators should first look for x-foo-@cpu@, then for x-foo.
+  ; The code generators should first look for x-foo-@prefix@, then for x-foo.
   ; ??? This is good enough for the first pass.  Will eventually need to use
   ; less C and more RTL.
 
@@ -1869,15 +1902,19 @@ struct scache {
 
     (define-full-insn 'x-begin "pbb begin handler"
       `(VIRTUAL PBB (ISA ,all))
-      "--begin--" () () '(c-code VOID "\
+      "--begin--" '() '() '(c-code VOID "\
   {
-#if WITH_SCACHE_PBB_@CPU@
-#ifdef DEFINE_SWITCH
+#if WITH_SCACHE_PBB_@PREFIX@
+#if defined DEFINE_SWITCH || defined FAST_P
     /* In the switch case FAST_P is a constant, allowing several optimizations
        in any called inline functions.  */
-    vpc = @cpu@_pbb_begin (current_cpu, FAST_P);
+    vpc = @prefix@_pbb_begin (current_cpu, FAST_P);
 #else
-    vpc = @cpu@_pbb_begin (current_cpu, STATE_RUN_FAST_P (CPU_STATE (current_cpu)));
+#if 0 /* cgen engine can't handle dynamic fast/full switching yet.  */
+    vpc = @prefix@_pbb_begin (current_cpu, STATE_RUN_FAST_P (CPU_STATE (current_cpu)));
+#else
+    vpc = @prefix@_pbb_begin (current_cpu, 0);
+#endif
 #endif
 #endif
   }
@@ -1885,10 +1922,10 @@ struct scache {
 
     (define-full-insn 'x-chain "pbb chain handler"
       `(VIRTUAL PBB (ISA ,all))
-      "--chain--" () () '(c-code VOID "\
+      "--chain--" '() '() '(c-code VOID "\
   {
-#if WITH_SCACHE_PBB_@CPU@
-    vpc = @cpu@_pbb_chain (current_cpu, sem_arg);
+#if WITH_SCACHE_PBB_@PREFIX@
+    vpc = @prefix@_pbb_chain (current_cpu, sem_arg);
 #ifdef DEFINE_SWITCH
     BREAK (sem);
 #endif
@@ -1898,16 +1935,16 @@ struct scache {
 
     (define-full-insn 'x-cti-chain "pbb cti-chain handler"
       `(VIRTUAL PBB (ISA ,all))
-      "--cti-chain--" () () '(c-code VOID "\
+      "--cti-chain--" '() '() '(c-code VOID "\
   {
-#if WITH_SCACHE_PBB_@CPU@
+#if WITH_SCACHE_PBB_@PREFIX@
 #ifdef DEFINE_SWITCH
-    vpc = @cpu@_pbb_cti_chain (current_cpu, sem_arg,
+    vpc = @prefix@_pbb_cti_chain (current_cpu, sem_arg,
 			       pbb_br_type, pbb_br_npc);
     BREAK (sem);
 #else
     /* FIXME: Allow provision of explicit ifmt spec in insn spec.  */
-    vpc = @cpu@_pbb_cti_chain (current_cpu, sem_arg,
+    vpc = @prefix@_pbb_cti_chain (current_cpu, sem_arg,
 			       CPU_PBB_BR_TYPE (current_cpu),
 			       CPU_PBB_BR_NPC (current_cpu));
 #endif
@@ -1917,27 +1954,27 @@ struct scache {
 
     (define-full-insn 'x-before "pbb begin handler"
       `(VIRTUAL PBB (ISA ,all))
-      "--before--" () () '(c-code VOID "\
+      "--before--" '() '() '(c-code VOID "\
   {
-#if WITH_SCACHE_PBB_@CPU@
-    @cpu@_pbb_before (current_cpu, sem_arg);
+#if WITH_SCACHE_PBB_@PREFIX@
+    @prefix@_pbb_before (current_cpu, sem_arg);
 #endif
   }
 ") nil)
 
     (define-full-insn 'x-after "pbb after handler"
       `(VIRTUAL PBB (ISA ,all))
-      "--after--" () () '(c-code VOID "\
+      "--after--" '() '() '(c-code VOID "\
   {
-#if WITH_SCACHE_PBB_@CPU@
-    @cpu@_pbb_after (current_cpu, sem_arg);
+#if WITH_SCACHE_PBB_@PREFIX@
+    @prefix@_pbb_after (current_cpu, sem_arg);
 #endif
   }
 ") nil)
 
     (define-full-insn 'x-invalid "invalid insn handler"
       `(VIRTUAL (ISA ,all))
-      "--invalid--" () () (list 'c-code 'VOID (string-append "\
+      "--invalid--" '() '() (list 'c-code 'VOID (string-append "\
   {
     /* Update the recorded pc in the cpu state struct.
        Only necessary for WITH_SCACHE case, but to avoid the
@@ -1950,7 +1987,7 @@ struct scache {
     vpc = sim_engine_invalid_insn (current_cpu, pc, vpc);
   }
 ")) nil))
-  
+
   *UNSPECIFIED*
 )
 

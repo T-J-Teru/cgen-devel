@@ -91,10 +91,10 @@
 ; It is intended to be included before sim-basics.h and sim-base.h.
 
 (define (cgen-arch.h)
-  (logit 1 "Generating arch.h ...\n")
+  (logit 1 "Generating " (current-arch-name) "'s arch.h ...\n")
 
   (string-write
-   (gen-copyright "Simulator header for @arch@."
+   (gen-c-copyright "Simulator header for @arch@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "#ifndef @ARCH@_ARCH_H\n"
    "#define @ARCH@_ARCH_H\n"
@@ -116,10 +116,10 @@
 ; This file defines non cpu family specific data about the architecture.
 
 (define (cgen-arch.c)
-  (logit 1 "Generating arch.c ...\n")
+  (logit 1 "Generating " (current-arch-name) "'s arch.c ...\n")
 
   (string-write
-   (gen-copyright "Simulator support for @arch@."
+   (gen-c-copyright "Simulator support for @arch@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "\
 #include \"sim-main.h\"
@@ -135,10 +135,10 @@
 ; It is intended to be included after sim-base.h/cgen-sim.h.
 
 (define (cgen-cpuall.h)
-  (logit 1 "Generating cpuall.h ...\n")
+  (logit 1 "Generating " (current-arch-name) "'s cpuall.h ...\n")
 
   (string-write
-   (gen-copyright "Simulator CPU header for @arch@."
+   (gen-c-copyright "Simulator CPU header for @arch@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "#ifndef @ARCH@_CPUALL_H\n"
    "#define @ARCH@_CPUALL_H\n"
@@ -154,10 +154,10 @@
 ; No longer used.
 
 (define (cgen-ops.c)
-  (logit 1 "Generating ops.c ...\n")
+  (logit 1 "Generating " (current-arch-name) "'s ops.c ...\n")
 
   (string-write
-   (gen-copyright "Simulator operational support for @arch@."
+   (gen-c-copyright "Simulator operational support for @arch@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "\
 #define MEMOPS_DEFINE_INLINE

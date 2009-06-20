@@ -1,5 +1,5 @@
 ; Top level file for reading and recording .cpu file contents.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2001, 2006, 2009 Red Hat, Inc.
 ; This file is part of CGEN.
 ; See file COPYING.CGEN for details.
 
@@ -58,13 +58,12 @@
 ;   usually these procs return "*UNSPECIFIED*"
 ; - all -foo-parse,parse-foo procs shall have `context' as the first arg
 ;   [FIXME: not all such procs have been converted]
-; - stay away from non-portable C symbols, it makes using hobbit more difficult
-;   e.g. don't have anything named `index', sigh.
+; - stay away from non-portable C symbols.
 
 ; Variables representing misc. global constants.
 
 ; A list of three numbers designating the cgen version: major minor fixlevel.
-(define -CGEN-VERSION '(0 7 2))
+(define -CGEN-VERSION '(1 1 0))
 (define (cgen-major) (car -CGEN-VERSION))
 (define (cgen-minor) (cadr -CGEN-VERSION))
 (define (cgen-fixlevel) (caddr -CGEN-VERSION))
@@ -87,17 +86,6 @@
 
 ; If a routine to initialize compiled-in code is defined, run it.
 (if (defined? 'cgen-init-c) (cgen-init-c))
-
-; Don't use the debugging evaluator unless asked for.
-(if (not (defined? 'DEBUG-EVAL))
-    (define DEBUG-EVAL #f))
-
-(if (and (not DEBUG-EVAL)
-	 (memq 'debug-extensions *features*))
-    (begin
-      (debug-disable 'debug)
-      (read-disable 'positions)
-      ))
 
 ; If this is set to #f, the file is always loaded.
 ; Don't override any current setting, e.g. from dev.scm.
@@ -159,10 +147,12 @@
 
 (maybe-load "pmacros" #f 'define-pmacro)
 (maybe-load "cos" #f 'make)
+(maybe-load "slib/logical" #f 'logical:logand)
 (maybe-load "slib/sort" #f 'sort)
 ; Used to pretty-print debugging messages.
 (maybe-load "slib/pp" #f 'pretty-print)
 ; Used by pretty-print.
+(maybe-load "slib/random" #f 'random)
 (maybe-load "slib/genwrite" #f 'generic-write)
 (maybe-load "utils" #f 'logit)
 (maybe-load "utils-cgen" "utils_cgen" 'obj:name)
@@ -180,6 +170,7 @@
 (maybe-load "minsn" #f '<macro-insn>)
 (maybe-load "decode" #f 'decode-build-table)
 (maybe-load "rtl" "rtl" '<rtx-func>)
+(maybe-load "rtl-traverse" "rtl_traverse" 'rtx-traverse)
 (maybe-load "rtx-funcs" "rtx_funcs" 'def-rtx-funcs)
 (maybe-load "rtl-c" "rtl_c" '<c-expr>)
 (maybe-load "semantics" #f 'semantic-compile)
@@ -486,7 +477,7 @@
   (let ((machs (atlist-attr-value-no-default atlist 'MACH obj)))
     (if (null? machs)
 	#t
-	(keep-mach? (map string->symbol (string-cut machs #\,)))))
+	(keep-mach? (bitset-attr->list machs))))
 )
 
 ; Return a boolean indicating if the object containing ATLIST is to be kept.
@@ -602,7 +593,7 @@
 
 (define (keep-isa-atlist? atlist obj)
   (let ((isas (atlist-attr-value atlist 'ISA obj)))
-    (keep-isa? (map string->symbol (string-cut isas #\,))))
+    (keep-isa? (bitset-attr->list isas)))
 )
 
 ; Return non-#f if object OBJ is to be kept, according to its ISA attribute.
@@ -704,7 +695,6 @@
   (reader-add-command! 'if
 		       "(if test then . else)\n"
 		       nil '(test then . else) cmd-if
-
   )
 
   ; Rather than add cgen specific stuff to pmacros.scm, we create
@@ -737,7 +727,7 @@ Define a preprocessor-style macro.
 )
 
 ; Install any builtin objects.
-; This is defered until define-arch is read.
+; This is deferred until define-arch is read.
 ; One reason is that attributes MACH and ISA don't exist until then.
 
 (define (reader-install-builtin!)
@@ -790,8 +780,8 @@ Define a preprocessor-style macro.
 ; .cpu file include mechanism
 
 (define (include file)
-  (display (string-append "Including file " file " ...\n"))
-  (reader-read-file! (string-append srcdir "/" file))
+  (logit 1 "Including file " (string-append arch-path "/" file) " ...\n")
+  (reader-read-file! (string-append arch-path "/" file))
   (logit 2 "Resuming previous file ...\n")
 )
 
@@ -805,21 +795,27 @@ Define a preprocessor-style macro.
 		    (cons 'if (cons test (cons then else)))
 		    ""))
   ; ??? rtx-eval test
-  (if (not (memq (car test) '(keep-isa? keep-mach?)))
-      (reader-error "only (if (keep-mach?|keep-isa? ...) ...) is currently supported"))
+  (if (not (memq (car test) '(keep-isa? keep-mach? application-is?)))
+      (reader-error "only (if (keep-mach?|keep-isa?|application-is? ...) ...) are currently supported" test ""))
   (case (car test)
     ((keep-isa?)
      (if (keep-isa? (cadr test))
-	 (eval then)
+	 (eval1 then)
 	 (if (null? else)
 	     #f
-	     (eval (car else)))))
+	     (eval1 (car else)))))
     ((keep-mach?)
      (if (keep-mach? (cadr test))
-	 (eval then)
+	 (eval1 then)
 	 (if (null? else)
 	     #f
-	     (eval (car else))))))
+	     (eval1 (car else)))))
+    ((application-is?)
+     (if (eq? APPLICATION (cadr test))
+	 (eval1 then)
+	 (if (null? else)
+	     #f
+	     (eval1 (car else))))))
 )
 
 ; Top level routine for loading .cpu files.
@@ -835,21 +831,17 @@ Define a preprocessor-style macro.
 ; ANALYZER! is a zero argument proc to call after loading the .cpu file.
 ; It is expected to set up various tables and things useful for the application
 ; in question.
+;
+; This function isn't local because it's used by dev.scm.
 
 (define (cpu-load file keep-mach keep-isa options
 		  app-initer! app-finisher! analyzer!)
   (-init-parse-cpu! keep-mach keep-isa options)
-
   (app-initer!)
-
-  ; This used to be done here, but is now defered until define-arch.
-  ;(reader-install-builtin!)
-
-  (display (string-append "Loading cpu file " file " ...\n"))
-
+  (logit 1 "Loading cpu description " file "\n")
+  (set! arch-path (dirname file))
   (reader-read-file! file)
-
-  (display (string-append "Processing cpu file " file " ...\n"))
+  (logit 2 "Processing cpu description " file "\n")
   (-finish-parse-cpu!)
   (app-finisher!)
   (-global-error-checks)
@@ -915,35 +907,6 @@ Define a preprocessor-style macro.
 	       (cons (cons opt #f) (cdr argv))))))
 )
 
-; Convert old style option spec to new style.
-; This involves converting a symbol option name to a string.
-
-(define (-opt-spec-update spec-list)
-  (map (lambda (spec)
-	 (if (symbol? (car spec))
-	     (cons (symbol->string (car spec)) (cdr spec))
-	     spec))
-       spec-list)
-)
-
-; Used to ensure backtraces are printed if an error occurs.
-
-(define (catch-with-backtrace thunk)
-  (lazy-catch #t thunk
-	      (lambda args
-		;(display args (current-error-port))
-		;(newline (current-error-port))
-		; display-error takes 6 arguments.
-		; If `quit' is called from elsewhere, it may not have 6
-		; arguments.  Not sure how best to handle this.
-		(if (= (length args) 5)
-		    (begin
-		      (apply display-error #f (current-error-port) (cdr args))
-		      (save-stack)
-		      (backtrace)))
-		(quit 1)))
-)
-
 ; Return (cadr args) or print a pretty error message if not possible.
 
 (define (option-arg args)
@@ -965,6 +928,17 @@ Define a preprocessor-style macro.
 
 (define (debug-var name) (assq-ref debug-env name))
 
+; A handle on /dev/tty, so we can be sure we're talking with the user.
+; We open this the first time we actually need it.
+(define debug-tty #f)
+
+; Return the port we should use for interacting with the user,
+; opening it if necessary.
+(define (debug-tty-port)
+  (if (not debug-tty)
+      (set! debug-tty (open-file "/dev/tty" "r+")))
+  debug-tty)
+
 ; Enter a repl loop for debugging purposes.
 ; Use (quit) to exit cgen completely.
 ; Use (debug-quit) or (quit 0) to exit the debugging session and
@@ -977,13 +951,16 @@ Define a preprocessor-style macro.
 ; FIXME: Move to utils.scm.
 
 (define (debug-repl env-alist)
-  (set! debug-env env-alist)
-  (let loop ()
-    (let ((rc (top-repl)))
-      (if (null? rc)
-	  (quit 1)) ; indicate error to `make'
-      (if (not (equal? rc '(0)))
-	  (loop))))
+  (with-input-and-output-to
+   (debug-tty-port)
+   (lambda ()
+     (set! debug-env env-alist)
+     (let loop ()
+       (let ((rc (top-repl)))
+	 (if (null? rc)
+	     (quit 1))			; indicate error to `make'
+	 (if (not (equal? rc '(0)))
+	     (loop))))))
 )
 
 ; Utility for debug-repl.
@@ -1011,7 +988,7 @@ Define a preprocessor-style macro.
 ; arguments specified up til now, then continue with next batch of args".
 
 (define common-arguments
-  '(("-a" "arch"      "set arch, specifies name of .cpu file to load")
+  '(("-a" "arch-file" "specify path of .cpu file to load")
     ("-b" #f          "use debugging evaluator, for backtraces")
     ("-d" #f          "start interactive debugging session")
     ("-f" "flags"     "specify a set of flags to control code generation")
@@ -1024,6 +1001,17 @@ Define a preprocessor-style macro.
     ("--version" #f   "print version info")
     )
 )
+
+; Default place to look.
+; This gets overridden to point to the directory of the loaded .cpu file.
+; ??? Ideally this would be local to this file.
+(define arch-path (string-append srcdir "/cpu"))
+
+; Accessors for application option specs
+(define (opt-get-first-pass opt)
+  (or (list-ref opt 3) (lambda args #f)))
+(define (opt-get-second-pass opt)
+  (or (list-ref opt 4) (lambda args #f)))
 
 ; Parse options and call generators.
 ; ARGS is a #:keyword delimited list of arguments.
@@ -1073,14 +1061,15 @@ Define a preprocessor-style macro.
       ; ARGS has been processed, now we can process ARGV.
 
       (let (
-	    (opt-spec (append common-arguments (-opt-spec-update opt-spec)))
+	    (opt-spec (append common-arguments opt-spec))
 	    (app-args nil)    ; application's args are queued here
 	    (repl? #f)
-	    (arch #f)
+	    (arch-file #f)
 	    (keep-mach "all") ; default is all machs
 	    (keep-isa "all")  ; default is all isas
 	    (flags "")
 	    (moreopts? #t)
+	    (debugging #f)    ; default is off, for speed
 	    (cep (current-error-port))
 	    (str=? string=?)
 	    )
@@ -1095,17 +1084,10 @@ Define a preprocessor-style macro.
 	      ((missing) (cgen-usage 'missing arg opt-spec))
 	      (else
 	       (cond ((str=? "-a" (car opt))
-		      (set! arch arg)
+		      (set! arch-file arg)
 		      )
 		     ((str=? "-b" (car opt))
-		      (if (memq 'debug-extensions *features*)
-			  (begin
-			    (debug-enable 'backtrace)
-			    (debug-enable 'debug)
-			    (debug-enable 'backwards)
-			    (debug-set! depth 200)
-			    (debug-set! frames 10)
-			    (read-enable 'positions)))
+		      (set! debugging #t)
 		      )
 		     ((str=? "-d" (car opt))
 		      (let ((prompt (string-append "cgen-" app-name "> ")))
@@ -1159,40 +1141,52 @@ Define a preprocessor-style macro.
 
 	; All arguments have been parsed.
 
-	(if (not arch)
-	    (error "-a option missing, no architecture specified"))
+	(cgen-call-with-debugging
+	 debugging
+	 (lambda ()
 
-	(if repl?
-	    (debug-repl nil))
-	(cpu-load (string-append srcdir "/" arch ".cpu")
-		  keep-mach keep-isa flags
-		  app-init! app-finish! app-analyze!)
-	; Start another repl loop if -d.
-	; Awkward.  Both places are useful, though this is more useful.
-	(if repl?
-	    (debug-repl nil))
+	   (if (not arch-file)
+	       (error "-a option missing, no architecture specified"))
 
-	; Done with processing the arguments.  Call the application's
-	; file generators.
+	   (if repl?
+	       (debug-repl nil))
+	   (cpu-load arch-file
+		     keep-mach keep-isa flags
+		     app-init! app-finish! app-analyze!)
 
-	(for-each (lambda (opt-arg)
-		    (let ((opt (car opt-arg))
-			  (arg (cdr opt-arg)))
-		      (if (cadr opt)
-			  ((cadddr opt) arg)
-			  ((cadddr opt)))))
-		  (reverse app-args))
+	   ;; Start another repl loop if -d.
+	   ;; Awkward.  Both places are useful, though this is more useful.
+	   (if repl?
+	       (debug-repl nil))
+
+	   ;; Done with processing the arguments.  Application arguments
+	   ;; are processed in two passes.  This is because the app may
+	   ;; have arguments that specify things that affect file
+	   ;; generation (e.g. to specify another input file) and we
+	   ;; don't want to require an ordering of the options.
+	   (for-each (lambda (opt-arg)
+		       (let ((opt (car opt-arg))
+			     (arg (cdr opt-arg)))
+			 (if (cadr opt)
+			     ((opt-get-first-pass opt) arg)
+			     ((opt-get-first-pass opt)))))
+		     (reverse app-args))
+
+	   (for-each (lambda (opt-arg)
+		       (let ((opt (car opt-arg))
+			     (arg (cdr opt-arg)))
+			 (if (cadr opt)
+			     ((opt-get-second-pass opt) arg)
+			     ((opt-get-second-pass opt)))))
+		     (reverse app-args))))
 	)
       )
     #f) ; end of lambda
 )
 
 ; Main entry point called by application file generators.
-; Cover fn to -cgen that uses catch-with-backtrace.
-; ??? (debug-enable 'backtrace) might also work except I seem to remember
-; having problems with it.  They may be fixed now.
 
 (define cgen
   (lambda args
-    (catch-with-backtrace (lambda () (apply -cgen args))))
+    (cgen-debugging-stack-start -cgen args))
 )

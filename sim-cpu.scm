@@ -1,5 +1,5 @@
 ; CPU family related simulator generator, excluding decoding and model support.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2001 Red Hat, Inc.
 ; This file is part of CGEN.
 
 ; Notes:
@@ -40,6 +40,23 @@
   (and (register? hw) (not (obj-has-attr? hw 'VIRTUAL)))
 )
 
+; Subroutine of -gen-hardware-types to generate the struct containing
+; hardware elements of one isa.
+
+(define (-gen-hardware-struct hw-list)
+  (if (null? hw-list)
+      ; If struct is empty, leave it out to simplify generated code.
+      ""
+      (string-list-map (lambda (hw)
+			 (string-list
+			  (gen-decl hw)
+			  (gen-obj-sanitize hw
+					    (string-list
+					     (send hw 'gen-get-macro)
+					     (send hw 'gen-set-macro)))))
+		       (find hw-need-storage? hw-list)))
+  )
+
 ; Return C type declarations of all of the hardware elements.
 ; The name of the type is prepended with the cpu family name.
 
@@ -49,15 +66,15 @@
    "typedef struct {\n"
    "  /* Hardware elements.  */\n"
    "  struct {\n"
-   (string-list-map (lambda (hw)
-		      (string-list
-		       (gen-decl hw)
-		       (gen-obj-sanitize hw
-					 (string-list
-					  (send hw 'gen-get-macro)
-					  (send hw 'gen-set-macro)))
-		       ))
-		    (find hw-need-storage? (current-hw-list)))
+   (-gen-hardware-struct 
+    (find (lambda (hw)
+	    (or (not (with-multiple-isa?))
+		(>= (count-common
+		     (current-keep-isa-name-list)
+		     (bitset-attr->list (obj-attr-value hw 'ISA)))
+		    1)))
+	  (current-hw-list))
+    )
    "  } hardware;\n"
    "#define CPU_CGEN_HW(cpu) (& (cpu)->cpu_data.hardware)\n"
    ;"  /* CPU profiling state information.  */\n"
@@ -322,17 +339,13 @@ void
    "    CASE (read, READ_" (string-upcase (gen-sym sfmt)) ") : "
    "/* " (obj:comment sfmt) " */\n"
    "    {\n"
-   (if (with-scache?)
-       (gen-define-field-macro sfmt)
-       "")
+   (gen-define-field-macro (if (with-scache?) sfmt #f))
    (gen-define-parallel-operand-macro sfmt)
    (gen-define-ifields (sfmt-iflds sfmt) (sfmt-length sfmt) "      " #f)
    (gen-extract-ifields (sfmt-iflds sfmt) (sfmt-length sfmt) "      " #f)
    (-gen-read-args sfmt)
    (gen-undef-parallel-operand-macro sfmt)
-   (if (with-scache?)
-       (gen-undef-field-macro sfmt)
-       "")
+   (gen-undef-field-macro sfmt)
    "    }\n"
    "    BREAK (read);\n\n"
    )
@@ -395,9 +408,7 @@ void
 	/indent
 	"    const ARGBUF *abuf = SEM_ARGBUF (sem_arg)->fields.write.abuf;\n")
        "")
-   (if (with-scache?)
-       (gen-define-field-macro sfmt)
-       "")
+   (gen-define-field-macro (if (with-scache?) sfmt #f))
    (gen-define-parallel-operand-macro sfmt)
    /indent
    "    int UNUSED written = abuf->written;\n"
@@ -422,9 +433,7 @@ void
        (string-list /indent "  SEM_BRANCH_FINI (vpc);\n")
        "")
    (gen-undef-parallel-operand-macro sfmt)
-   (if (with-scache?)
-       (gen-undef-field-macro sfmt)
-       "")
+   (gen-undef-field-macro sfmt)
    /indent "  }\n"
    (if insn
        (string-list /indent "  NEXT (vpc);\n")
@@ -460,10 +469,10 @@ void
 (define (-gen-sem-fn-table-entry insn)
   (string-list
    "  { "
-   "@CPU@_INSN_"
+   "@PREFIX@_INSN_"
    (string-upcase (gen-sym insn))
    ", "
-   "SEM_FN_NAME (@cpu@," (-gen-sem-fn-name insn) ")"
+   "SEM_FN_NAME (@prefix@," (-gen-sem-fn-name insn) ")"
    " },\n"
    )
 )
@@ -489,7 +498,7 @@ static const struct sem_fn_desc sem_fns[] = {\n"
 /* Add the semantic fns to IDESC_TABLE.  */
 
 void
-SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
+SEM_FN_NAME (@prefix@,init_idesc_table) (SIM_CPU *current_cpu)
 {
   IDESC *idesc_table = CPU_IDESC (current_cpu);
   const struct sem_fn_desc *sf;
@@ -504,12 +513,12 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
       if (valid_p)
 	idesc_table[sf->index].sem_fast = sf->fn;
       else
-	idesc_table[sf->index].sem_fast = SEM_FN_NAME (@cpu@,x_invalid);
+	idesc_table[sf->index].sem_fast = SEM_FN_NAME (@prefix@,x_invalid);
 #else
       if (valid_p)
 	idesc_table[sf->index].sem_full = sf->fn;
       else
-	idesc_table[sf->index].sem_full = SEM_FN_NAME (@cpu@,x_invalid);
+	idesc_table[sf->index].sem_full = SEM_FN_NAME (@prefix@,x_invalid);
 #endif
     }
 }
@@ -520,15 +529,26 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
 ; Return C code to perform the semantics of INSN.
 
 (define (gen-semantic-code insn)
-  ; Indicate generating code for INSN.
-  ; Use the compiled form if available.
-  ; The case when they're not available is for virtual insns.
-  (let ((sem (insn-compiled-semantics insn)))
-    (if sem
-	(rtl-c-parsed VOID sem nil
-		      #:rtl-cover-fns? #t #:owner insn)
-	(rtl-c VOID (insn-semantics insn) nil
-	       #:rtl-cover-fns? #t #:owner insn)))
+  (string-append
+   (if (and (insn-real? insn)
+	    (isa-setup-semantics (current-isa)))
+       (string-append
+	"  "
+	(rtl-c VOID (isa-setup-semantics (current-isa)) nil
+	       #:rtl-cover-fns? #t
+	       #:owner insn)
+	"\n")
+       "")
+
+   ; Indicate generating code for INSN.
+   ; Use the compiled form if available.
+   ; The case when they're not available is for virtual insns.
+   (let ((sem (insn-compiled-semantics insn)))
+     (if sem
+	 (rtl-c-parsed VOID sem nil
+		       #:rtl-cover-fns? #t #:owner insn)
+	 (rtl-c VOID (insn-semantics insn) nil
+		#:rtl-cover-fns? #t #:owner insn))))
 )
 
 ; Return definition of C function to perform INSN.
@@ -543,9 +563,9 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
 	(cti? (insn-cti? insn))
 	(insn-len (insn-length-bytes insn)))
     (string-list
-     "/* " (obj:name insn) ": " (insn-syntax insn) " */\n\n"
+     "/* " (obj:str-name insn) ": " (insn-syntax insn) " */\n\n"
      "static SEM_PC\n"
-     "SEM_FN_NAME (@cpu@," (gen-sym insn) ")"
+     "SEM_FN_NAME (@prefix@," (gen-sym insn) ")"
      (if (and parallel? (not (with-generic-write?)))
 	 " (SIM_CPU *current_cpu, SEM_ARG sem_arg, PAREXEC *par_exec)\n"
 	 " (SIM_CPU *current_cpu, SEM_ARG sem_arg)\n")
@@ -600,9 +620,9 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
 	(cti? (insn-cti? insn))
 	(insn-len (insn-length-bytes insn)))
     (string-list
-     "/* " (obj:name insn) ": " (insn-syntax insn) " */\n\n"
+     "/* " (obj:str-name insn) ": " (insn-syntax insn) " */\n\n"
      "static SEM_STATUS\n"
-     "SEM_FN_NAME (@cpu@," (gen-sym insn) ")"
+     "SEM_FN_NAME (@prefix@," (gen-sym insn) ")"
      (if (and parallel? (not (with-generic-write?)))
 	 " (SIM_CPU *current_cpu, SEM_ARG sem_arg, PAREXEC *par_exec, CGEN_INSN_INT insn)\n"
 	 " (SIM_CPU *current_cpu, SEM_ARG sem_arg, CGEN_INSN_INT insn)\n")
@@ -612,6 +632,7 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
 	 "")
      "  SEM_STATUS status = 0;\n" ; ??? wip
      "  ARGBUF *abuf = SEM_ARGBUF (sem_arg);\n"
+     (gen-define-field-macro (if (with-scache?) (insn-sfmt insn) #f))
      ; Unconditionally written operands are not recorded here.
      "  int UNUSED written = 0;\n"
      "  IADDR UNUSED pc = GET_H_PC ();\n"
@@ -642,6 +663,7 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
 	  (gen-bool-attrs (obj-atlist insn) gen-attr-mask)
 	  ");\n")
 	 "")
+     (gen-undef-field-macro (insn-sfmt insn))
      "  return status;\n"
      (if (and parallel? (not (with-generic-write?)))
 	 (gen-undef-parallel-operand-macro (insn-sfmt insn))
@@ -697,9 +719,7 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
      "{\n"
      "  SEM_ARG sem_arg = SEM_SEM_ARG (vpc, sc);\n"
      "  ARGBUF *abuf = SEM_ARGBUF (sem_arg);\n"
-     (if (with-scache?)
-	 (gen-define-field-macro (insn-sfmt insn))
-	 "")
+     (gen-define-field-macro (if (with-scache?) (insn-sfmt insn) #f))
      (if (and parallel? (not (with-generic-write?)))
 	 (gen-define-parallel-operand-macro (insn-sfmt insn))
 	 "")
@@ -733,9 +753,7 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
      (if (and parallel? (not (with-generic-write?)))
 	 (gen-undef-parallel-operand-macro (insn-sfmt insn))
 	 "")
-     (if (with-scache?)
-	 (gen-undef-field-macro (insn-sfmt insn))
-	 "")
+     (gen-undef-field-macro (insn-sfmt insn))
      "}\n"
      "  NEXT (vpc);\n\n"
      ))
@@ -782,7 +800,7 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
 ; Generate cpu-<cpu>.h
 
 (define (cgen-cpu.h)
-  (logit 1 "Generating " (gen-cpu-name) " cpu.h ...\n")
+  (logit 1 "Generating " (gen-cpu-name) "'s cpu.h ...\n")
 
   (sim-analyze-insns!)
 
@@ -795,7 +813,7 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
   (rtl-c-config! #:rtl-cover-fns? #f)
 
   (string-write
-   (gen-copyright "CPU family header for @cpu@."
+   (gen-c-copyright "CPU family header for @cpu@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "\
 #ifndef CPU_@CPU@_H
@@ -806,9 +824,14 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
    -gen-hardware-types
    -gen-cpu-reg-access-decls
    -gen-model-decls
-   (lambda () (gen-argbuf-type #t))
-   (lambda () (gen-scache-type #t))
-   -gen-extract-macros
+
+   (if (not (with-multiple-isa?))
+     (string-list
+       (lambda () (gen-argbuf-type #t))
+       (lambda () (gen-scache-type #t))
+       -gen-extract-macros)
+     "")
+
    (if (and (with-parallel?) (not (with-generic-write?)))
        -gen-parallel-exec-type
        "")
@@ -817,10 +840,41 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
    )
 )
 
+; Generate defs-<isa>.h.
+
+(define (cgen-defs.h)
+  (logit 1 "Generating " (obj:name (current-isa)) "'s defs.h ...\n")
+
+  (sim-analyze-insns!)
+
+  ; Tell the rtl->c translator we're not the simulator.
+  ; ??? Minimizes changes in generated code until this is changed.
+  ; RTL->C happens for field decoding.
+  (rtl-c-config! #:rtl-cover-fns? #f)
+
+  (string-write
+   (gen-c-copyright (string-append
+                  "ISA definitions header for "
+                  (obj:str-name (current-isa))
+                  ".")
+                 CURRENT-COPYRIGHT CURRENT-PACKAGE)
+   "\
+#ifndef DEFS_@PREFIX@_H
+#define DEFS_@PREFIX@_H
+
+"
+   (lambda () (gen-argbuf-type #t))
+   (lambda () (gen-scache-type #t))
+   -gen-extract-macros
+
+   "#endif /* DEFS_@PREFIX@_H */\n"
+   )
+)
+
 ; Generate cpu-<cpu>.c
 
 (define (cgen-cpu.c)
-  (logit 1 "Generating " (gen-cpu-name) " cpu.c ...\n")
+  (logit 1 "Generating " (gen-cpu-name) "'s cpu.c ...\n")
 
   (sim-analyze-insns!)
 
@@ -831,7 +885,7 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
   (rtl-c-config! #:rtl-cover-fns? #t)
 
   (string-write
-   (gen-copyright "Misc. support for CPU family @cpu@."
+   (gen-c-copyright "Misc. support for CPU family @cpu@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "\
 #define WANT_CPU @cpu@
@@ -849,7 +903,7 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
 ; Generate read.c
 
 (define (cgen-read.c)
-  (logit 1 "Generating " (gen-cpu-name) " read.c ...\n")
+  (logit 1 "Generating " (gen-cpu-name) "'s read.c ...\n")
 
   (sim-analyze-insns!)
 
@@ -860,8 +914,8 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
   (rtl-c-config! #:rtl-cover-fns? #t)
 
   (string-write
-   (gen-copyright (string-append "Simulator instruction operand reader for "
-				 (current-arch-name) ".")
+   (gen-c-copyright (string-append "Simulator instruction operand reader for "
+				   (symbol->string (current-arch-name)) ".")
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "\
 #ifdef DEFINE_LABELS
@@ -878,7 +932,7 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
    (lambda ()
      (string-write-map (lambda (insn)
 			 (string-append "    { "
-					"@CPU@_INSN_"
+					"@PREFIX@_INSN_"
 					(string-upcase (gen-sym insn))
 					", && case_read_READ_"
 					(string-upcase (gen-sym (insn-sfmt insn)))
@@ -927,7 +981,7 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
 ; Generate write.c
 
 (define (cgen-write.c)
-  (logit 1 "Generating " (gen-cpu-name) " write.c ...\n")
+  (logit 1 "Generating " (gen-cpu-name) "'s write.c ...\n")
 
   (sim-analyze-insns!)
 
@@ -938,8 +992,8 @@ SEM_FN_NAME (@cpu@,init_idesc_table) (SIM_CPU *current_cpu)
   (rtl-c-config! #:rtl-cover-fns? #t)
 
   (string-write
-   (gen-copyright (string-append "Simulator instruction operand writer for "
-				 (current-arch-name) ".")
+   (gen-c-copyright (string-append "Simulator instruction operand writer for "
+				   (symbol->string (current-arch-name)) ".")
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "\
 /* Write cached results of 1 or more insns executed in parallel.  */
@@ -979,7 +1033,7 @@ void
 ; Each instruction is implemented in its own function.
 
 (define (cgen-semantics.c)
-  (logit 1 "Generating " (gen-cpu-name) " semantics.c ...\n")
+  (logit 1 "Generating " (gen-cpu-name) "'s semantics.c ...\n")
 
   (sim-analyze-insns!)
 
@@ -990,7 +1044,7 @@ void
   (rtl-c-config! #:rtl-cover-fns? #t)
 
   (string-write
-   (gen-copyright "Simulator instruction semantics for @cpu@."
+   (gen-c-copyright "Simulator instruction semantics for @cpu@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "\
 #define WANT_CPU @cpu@
@@ -1001,9 +1055,10 @@ void
 #include \"cgen-ops.h\"
 
 #undef GET_ATTR
-#define GET_ATTR(cpu, num, attr) \
-CGEN_ATTR_VALUE (NULL, abuf->idesc->attrs, CGEN_INSN_##attr)
-
+"
+   (gen-define-with-symcat "GET_ATTR(cpu, num, attr) \
+CGEN_ATTR_VALUE (NULL, abuf->idesc->attrs, CGEN_INSN_" "attr)")
+"
 /* This is used so that we can compile two copies of the semantic code,
    one with full feature support and one without that runs fast(er).
    FAST_P, when desired, is defined on the command line, -DFAST_P=1.  */
@@ -1027,7 +1082,7 @@ CGEN_ATTR_VALUE (NULL, abuf->idesc->attrs, CGEN_INSN_##attr)
 ; This file consists of just the switch().  It is included by mainloop.c.
 
 (define (cgen-sem-switch.c)
-  (logit 1 "Generating " (gen-cpu-name) " sem-switch.c ...\n")
+  (logit 1 "Generating " (gen-cpu-name) "'s sem-switch.c ...\n")
 
   (sim-analyze-insns!)
 
@@ -1039,7 +1094,7 @@ CGEN_ATTR_VALUE (NULL, abuf->idesc->attrs, CGEN_INSN_##attr)
   (rtl-c-config! #:rtl-cover-fns? #t)
 
   (string-write
-   (gen-copyright "Simulator instruction semantics for @cpu@."
+   (gen-c-copyright "Simulator instruction semantics for @cpu@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
 
    "\
@@ -1057,7 +1112,7 @@ CGEN_ATTR_VALUE (NULL, abuf->idesc->attrs, CGEN_INSN_##attr)
    (lambda ()
      (string-write-map (lambda (insn)
 			 (string-append "    { "
-					"@CPU@_INSN_"
+					"@PREFIX@_INSN_"
 					(string-upcase (gen-sym insn))
 					", && case_sem_INSN_"
 					(string-upcase (gen-sym insn))
@@ -1112,9 +1167,10 @@ CGEN_ATTR_VALUE (NULL, abuf->idesc->attrs, CGEN_INSN_##attr)
 #endif
 
 #undef GET_ATTR
-#define GET_ATTR(cpu, num, attr) \
-CGEN_ATTR_VALUE (NULL, abuf->idesc->attrs, CGEN_INSN_##attr)
-
+"
+   (gen-define-with-symcat "GET_ATTR(cpu, num, attr) \
+CGEN_ATTR_VALUE (NULL, abuf->idesc->attrs, CGEN_INSN_" "attr)")
+"
 {
 
 #if WITH_SCACHE_PBB
@@ -1169,7 +1225,7 @@ SWITCH (sem, SEM_ARGBUF (vpc) -> semantic.sem_case)
 
   (string-write
    "cat <<EOF >/dev/null\n"
-   (gen-copyright "Simulator main loop for @arch@."
+   (gen-c-copyright "Simulator main loop for @arch@."
 		  CURRENT-COPYRIGHT CURRENT-PACKAGE)
    "EOF\n"
    "\

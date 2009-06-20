@@ -90,11 +90,23 @@
 )
 
 ; Given FLD-LIST, compute the base length in bits.
-; Computing the min of state-base-insn-bitsize and the total-length
-; is for [V]LIW instruction sets.
+;
+; For variable length instruction sets, or with cpus with multiple
+; instruction sets, compute the base appropriate for this set of
+; ifields.  Check that ifields are not shared among isas with
+; inconsistent base insn lengths.
 
 (define (compute-insn-base-mask-length fld-list)
-  (min (state-base-insn-bitsize) (compute-insn-length fld-list))
+  (let* ((isa-base-bitsizes
+	  (remove-duplicates
+	   (map isa-base-insn-bitsize
+		(map current-isa-lookup
+		     (collect (lambda (ifld) 
+				(bitset-attr->list (atlist-attr-value (obj-atlist ifld) 'ISA #f)))
+			      fld-list))))))
+    (if (= 1 (length isa-base-bitsizes))
+	(min (car isa-base-bitsizes) (compute-insn-length fld-list))
+	(error "ifields have inconsistent isa/base-insn-size values:" isa-base-bitsizes)))
 )
 
 ; Given FLD-LIST, compute the bitmask of constant values in the base part
@@ -134,10 +146,10 @@
 (define (-ifmt-search-key insn sorted-ifld-list)
   (string-map (lambda (ifld)
 		(string-append " ("
-			       (or (obj-attr-value insn 'sanitize)
+			       (or (->string (obj-attr-value insn 'sanitize))
 				   "-nosan-")
 			       " "
-			       (obj:name ifld)
+			       (obj:str-name ifld)
 			       " "
 			       (ifld-ilk ifld)
 			       ")"))
@@ -255,10 +267,10 @@
 (define (-sfmt-search-key insn cti? sorted-used-iflds sem-in-ops sem-out-ops)
   (let ((op-key (lambda (op)
 		  (string-append " ("
-				 (or (obj-attr-value insn 'sanitize)
+				 (or (->string (obj-attr-value insn 'sanitize))
 				     "-nosan-")
 				 " "
-				 (obj:name op)
+				 (obj:str-name op)
 				 ; ??? Including memory operands currently
 				 ; isn't necessary and it can account for some
 				 ; spurious differences.  On the other hand
@@ -267,7 +279,7 @@
 				 (if (memory? (op:type op))
 				     ""
 				     (string-append " "
-						    (obj:name (op:mode op))))
+						    (obj:str-name (op:mode op))))
 				 ; CGEN_OPERAND_INSTANCE_COND_REF is stored
 				 ; with the operand in the operand instance
 				 ; table thus formats must be distinguished
@@ -279,7 +291,7 @@
      cti?
      (insn-length insn)
      (string-map (lambda (ifld)
-		   (string-append " (" (obj:name ifld) " " (ifld-ilk ifld) ")"))
+		   (string-append " (" (obj:str-name ifld) " " (ifld-ilk ifld) ")"))
 		 sorted-used-iflds)
      (string-map op-key
 		 sem-in-ops)
@@ -500,7 +512,7 @@
 				 (-fmt-desc-cti? fmt-desc)
 				 (-fmt-desc-in-ops fmt-desc)
 				 (-fmt-desc-out-ops fmt-desc)
-				 (-fmt-desc-used-iflds fmt-desc))))
+				 (ifields-base-ifields (-fmt-desc-used-iflds fmt-desc)))))
 	  (logit 3 "Creating sformat " (number->string sfmt-index) ".\n")
 	  (insn-set-sfmt! insn sfmt)
 	  (append! sfmt-list (list sfmt))

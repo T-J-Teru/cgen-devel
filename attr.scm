@@ -1,5 +1,5 @@
 ; Attributes.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2003, 2005 Red Hat, Inc.
 ; This file is part of CGEN.
 ; See file COPYING.CGEN for details.
 
@@ -15,6 +15,7 @@
 ; Boolean attributes are specified as (NAME #t) or (NAME #f),
 ; but for convenience ATTR and !ATTR are also supported.
 ; integer/enum attrs are specified as (ATTR value).
+; string attrs are specified as (ATTR value).
 ; Bitset attrs are specified as (ATTR val1,val2,val3).
 ; In all cases the value needn't be constant, and can be an expression,
 ; though expressions are currently only supported for META-attributes
@@ -90,10 +91,24 @@
 	      nil)
 )
 
-; For bitset attributes, VALUES is a list of symbols, one for each bit.
+; VALUES is ignored for string-attribute.
+
+(define <string-attribute>
+  (class-make '<string-attribute>
+	      '(<attribute>)
+	      '(default values)
+	      nil)
+)
+
+; For bitset attributes VALUES is a list of
+; (symbol bit-number-or-#f attr-list comment-or-#f),
+; one for each bit.
+; If bit-number is #f (unspecified), cgen will choose.
 ; Int's are used to record the bitset in the generated code so there's a limit
 ; of 32 elements, though there's nothing inherent in the description language
 ; that precludes removing the limit.
+; NOTE: While one might want to record each element as an object, there's
+; currently no need for the added complexity.
 
 (define <bitset-attribute>
   (class-make '<bitset-attribute>
@@ -102,8 +117,10 @@
 	      nil)
 )
 
-; For integer attributes, VALUES is a list of ints, one for each possible
-; value, or the empty list of all values are permissible.
+; For integer attributes VALUES is a list of (int),
+; one for each possible value,
+; or the empty list of all values are permissible.
+; Note that each element is itself a list.  This is for consistency.
 
 (define <integer-attribute>
   (class-make '<integer-attribute>
@@ -112,8 +129,13 @@
 	      nil)
 )
 
-; For enum attributes, VALUES is a list of symbols, one for each possible
-; value.
+; For enum attributes VALUES is a list of
+; (symbol enum-value-or-#f attr-list comment-or-#f),
+; one for each possible.
+; If enum-value is #f (unspecified) cgen will apply the standard rule for
+; assigning enum values.
+; NOTE: While one might want to record each element as an object, there's
+; currently no need for the added complexity.
 
 (define <enum-attribute>
   (class-make '<enum-attribute>
@@ -131,11 +153,12 @@
 (define (bitset-attr? x) (class-instance? <bitset-attribute> x))
 
 ; Return a symbol indicating the kind of attribute ATTR is.
-; The result is one of boolean,integer,enum,bitset.
+; The result is one of boolean,integer,enum,bitset or string.
 
 (define (attr-kind attr)
   (case (object-class-name attr)
     ((<boolean-attribute>) 'boolean)
+    ((<string-attribute>)  'string)
     ((<integer-attribute>) 'integer)
     ((<enum-attribute>)    'enum)
     ((<bitset-attribute>)  'bitset)
@@ -160,6 +183,7 @@
 
 ; VALUES must be a comma separated list of symbols
 ; (e.g. val1,val2 not (val1 val2)).
+; FIXME: require values to be a string (i.e. "val1,val2")
 
 (define (bitset-attr-make name values) (cons name values))
 
@@ -171,17 +195,25 @@
 
 (define (enum-attr-make name value) (cons name value))
 
+(define (parse-simple-attribute right-type? message)
+  (lambda (self errtxt val)
+    (if (and (not (null? val))
+	     (right-type? (car val))
+	     (null? (cdr val)))
+	(cons (obj:name self) (car val))
+	(parse-error errtxt message (cons (obj:name self) val))))
+)
+
 ; A boolean attribute's value is either #t or #f.
 
 (method-make!
  <boolean-attribute> 'parse-value
- (lambda (self errtxt val)
-   (if (and (not (null? val))
-	    (boolean? (car val)))
-       (cons (obj:name self) (car val))
-       (parse-error errtxt "boolean attribute not one of #f/#t"
-		    (cons (obj:name self) val))))
+ (parse-simple-attribute boolean? "boolean attribute not one of #f/#t")
 )
+
+(method-make!
+ <string-attribute> 'parse-value
+ (parse-simple-attribute string? "invalid argument to string attribute"))
 
 ; A bitset attribute's value is a comma separated list of elements.
 ; We don't validate the values.  In the case of the MACH attribute,
@@ -195,14 +227,8 @@
 
 (method-make!
  <bitset-attribute> 'parse-value
- (lambda (self errtxt val)
-   (if (and (not (null? val))
-	    (or (symbol? (car val))
-		(string? (car val)))
-	    (null? (cdr val)))
-       (cons (obj:name self) (car val))
-       (parse-error errtxt "improper bitset attribute"
-		    (cons (obj:name self) val))))
+ (parse-simple-attribute (lambda (x) (or (symbol? x) (string? x)))
+			 "improper bitset attribute")
 )
 
 ; An integer attribute's value is a number
@@ -210,26 +236,16 @@
 
 (method-make!
  <integer-attribute> 'parse-value
- (lambda (self errtxt val)
-   (if (and (not (null? val))
-	    (or (number? (car val)) (symbol? (car val)))
-	    (null? (cdr val)))
-       (cons (obj:name self) (car val))
-       (parse-error errtxt "improper integer attribute"
-		    (cons (obj:name self) val))))
+ (parse-simple-attribute (lambda (x) (or (number? x) (symbol? x)))
+			 "improper integer attribute")
 )
 
 ; An enum attribute's value is a symbol representing that value.
 
 (method-make!
  <enum-attribute> 'parse-value
- (lambda (self errtxt val)
-   (if (and (not (null? val))
-	    (or (symbol? (car val)) (string? (car val)))
-	    (null? (cdr val)))
-       (cons (obj:name self) (car val))
-       (parse-error errtxt "improper enum attribute"
-		    (cons (obj:name self) val))))
+ (parse-simple-attribute (lambda (x) (or (symbol? x) (string? x)))
+			 "improper enum attribute")
 )
 
 ; Parse a boolean attribute's value definition.
@@ -242,21 +258,36 @@
        (parse-error errtxt "boolean value list must be (#f #t)" values)))
 )
 
+; Ignore values for strings.  We can't do any error checking since
+; the default value is (#f #t).
+
+(method-make!
+ <string-attribute> 'parse-value-def
+ (lambda (self errtxt values) #f)
+)
+
 ; Parse a bitset attribute's value definition.
 ; FIXME: treated as enum?
 
 (method-make!
  <bitset-attribute> 'parse-value-def
  (lambda (self errtxt values)
-   (parse-enum-vals "" values))
+   (parse-enum-vals errtxt "" values))
 )
 
 ; Parse an integer attribute's value definition.
-; FIXME: Unfinished.
+; VALUES may be #f which means any value is ok.
 
 (method-make!
  <integer-attribute> 'parse-value-def
- (lambda (self errtxt values) values)
+ (lambda (self errtxt values)
+   (if values
+       (for-each (lambda (val)
+		   (if (or (not (list? val))
+			   (not (number? (car val))))
+		       (parse-error errtxt "invalid element in integer attribute list" val)))
+		 values))
+   values)
 )
 
 ; Parse an enum attribute's value definition.
@@ -265,7 +296,7 @@
 (method-make!
  <enum-attribute> 'parse-value-def
  (lambda (self errtxt values)
-   (parse-enum-vals "" values))
+   (parse-enum-vals errtxt "" values))
 )
 
 ; Make an attribute list object from a list of name/value pairs.
@@ -277,14 +308,14 @@
 ; description in the .cpu file.
 ; All arguments are in raw (non-evaluated) form.
 ; TYPE-CLASS is the class of the object to create.
-; i.e. one of <{boolean,bitset,integer,enum}-attribute>.
+; i.e. one of <{boolean,bitset,integer,enum,string}-attribute>.
 ; If DEFAULT is #f, use the first value.
 ; ??? Allowable values for integer attributes is wip.
 
 (define (-attr-parse errtxt type-class name comment attrs for default values)
   (logit 2 "Processing attribute " name " ...\n")
   (let* ((name (parse-name name errtxt))
-	 (errtxt (string-append errtxt ":" name))
+	 (errtxt (stringsym-append errtxt ":" name))
 	 (result (new type-class))
 	 (parsed-values (send result 'parse-value-def errtxt values)))
     (elm-xset! result 'name name)
@@ -298,6 +329,12 @@
 		(not (rtx? default)))
 	   (parse-error errtxt "invalid default" default))
        (elm-xset! result 'default default))
+      ((<string-attribute>)
+       (let ((default (or default "")))
+	 (if (and (not (string? default))
+		  (not (rtx? default)))
+	     (parse-error errtxt "invalid default" default))
+	 (elm-xset! result 'default default)))
       ((<integer-attribute>)
        (let ((default (if default default (if (null? values) 0 (car values)))))
 	 (if (and (not (integer? default))
@@ -327,8 +364,8 @@
 	(comment "")
 	(attrs nil)
 	(for #f) ; assume for everything
-	(default #f) ; assume boolean
-	(values '(#f #t)) ; assume boolean
+	(default #f) ; indicates "not set"
+	(values #f) ; indicates "not set"
 	)
     ; Loop over each element in ARG-LIST, recording what's found.
     (let loop ((arg-list arg-list))
@@ -339,6 +376,7 @@
 	    (case elm-name
 	      ((type) (set! type-class (case (cadr arg)
 					((boolean) <boolean-attribute>)
+					((string) <string-attribute>)
 					((bitset) <bitset-attribute>)
 					((integer) <integer-attribute>)
 					((enum) <enum-attribute>)
@@ -354,12 +392,38 @@
 	      ((values) (set! values (cdr arg)))
 	      (else (parse-error errtxt "invalid attribute arg" arg)))
 	    (loop (cdr arg-list)))))
+    ; Must have type now.
+    (if (eq? type-class 'not-set)
+	(parse-error errtxt "type not specified"))
+    ; Establish proper defaults now that we know the type.
+    (case (class-name type-class)
+      ((<boolean-attribute>)
+       (if (eq? default #f)
+	   (set! default #f)) ; really a nop, but for consistency
+       (if (eq? values #f)
+	   (set! values '(#f #t))))
+      ((bitset-attribute>)
+       (if (eq? default #f)
+	   (parse-error errtxt "bitset-attribute default not specified"))
+       (if (eq? values #f)
+	   (parse-error errtxt "bitset-attribute values not specified")))
+      ((integer-attribute>)
+       (if (eq? default #f)
+	   (set! default 0))
+       (if (eq? values #f)
+	   (set! values #f))) ; really a nop, but for consistency
+      ((enum-attribute>)
+       (if (eq? default #f)
+	   (parse-error errtxt "enum-attribute default not specified"))
+       (if (eq? values #f)
+	   (parse-error errtxt "bitset-attribute values not specified")))
+      )
     ; Now that we've identified the elements, build the object.
     (-attr-parse errtxt type-class name comment attrs for default values)
     )
 )
 
-; Main routine for defining attributes in .cpu files.
+; Main routines for defining attributes in .cpu files.
 
 (define define-attr
   (lambda arg-list
@@ -381,19 +445,30 @@
 ; attribute alist ALIST.
 ; Note that if the attribute isn't present, it is defined to be #f.
 
-(define (attr-has-attr? alist attr)
-  (let ((a (assq attr alist)))
-    (cond ((not a) a)
-	  ((boolean? (cdr a)) (cdr a))
-	  (else (error "Not a boolean attribute:" attr))))
-)
-
-(method-make! <attr-list> 'has-attr?
-	      (lambda (self attr) (attr-has-attr? (elm-get self 'attrs) attr))
+(method-make!
+ <attr-list> 'has-attr?
+ (lambda (self attr)
+   (let ((a (assq attr (elm-get self 'attrs))))
+     (cond ((not a) a)
+	   ((boolean? (cdr a)) (cdr a))
+	   (else (error "Not a boolean attribute:" attr)))))
 )
 
 (define (atlist-has-attr? atlist attr)
   (send atlist 'has-attr? attr)
+)
+
+; Return a boolean indicating if attribute ATTR is present in
+; attribute alist ALIST.
+
+(method-make!
+ <attr-list> 'attr-present?
+ (lambda (self attr)
+   (->bool (assq attr (elm-get self 'attrs))))
+)
+
+(define (atlist-attr-present? atlist attr)
+  (send atlist 'attr-present? attr)
 )
 
 ; Expand attribute value ATVAL, which is an rtx expression.
@@ -482,6 +557,7 @@
 	atlist-empty
 	result))
 )
+
 (define (obj-set-atlist! obj attrs) (send obj 'set-atlist! attrs))
 
 ; Add attribute ATTR to OBJ.
@@ -503,7 +579,7 @@
 )
 
 ; Return boolean of whether OBJ has boolean attribute ATTR or not.
-; OBJ is any object.
+; OBJ is any object that supports attributes.
 
 (define (obj-has-attr? obj attr)
   (atlist-has-attr? (obj-atlist obj) attr)
@@ -511,6 +587,12 @@
 
 ; FIXME: for backward compatibility.  Delete in time.
 (define has-attr? obj-has-attr?)
+
+; Return a boolean indicating if attribute ATTR is present in OBJ.
+
+(define (obj-attr-present? obj attr)
+  (atlist-attr-present? (obj-atlist obj) attr)
+)
 
 ; Return value of attribute ATTR in OBJ.
 ; If the attribute isn't present, the default is returned.
@@ -520,15 +602,71 @@
   (let ((atlist (obj-atlist obj)))
     (atlist-attr-value atlist attr obj))
 )
+
+; Return boolean of whether OBJ has attribute ATTR value VALUE or not.
+; OBJ is any object that supports attributes.
+; NOTE: The default value of the attribute IS considered.
+
+(define (obj-has-attr-value? obj attr value)
+  (let ((a (obj-attr-value obj attr)))
+    (eq? a value))
+)
+
+; Return boolean of whether OBJ explicitly has attribute ATTR value VALUE
+; or not.
+; OBJ is any object that supports attributes.
+; NOTE: The default value of the attribute IS NOT considered.
+
+(define (obj-has-attr-value-no-default? obj attr value)
+  (let* ((atlist (obj-atlist obj))
+	 (objs-value (atlist-attr-value-no-default atlist attr obj)))
+    (and (not (null? objs-value)) (eq? value objs-value)))
+)
 
 ; Utilities.
 
 ; Convert a bitset value "a,b,c" into a list (a b c).
 
 (define (bitset-attr->list x)
-  (map string->symbol (string-cut x #\,))
+  (map string->symbol (string-cut (->string x) #\,))
 )
 
+; Generate a list representing a bit mask of the indices of 'values'
+; within 'all-values'. Each element in the resulting list represents a byte.
+; Both bits and bytes are indexed from left to right starting at 0
+; with 8 bits in a byte.
+(define (charmask-bytes values all-values vec-length)
+  (logit 3 "charmask-bytes for " values " " all-values "\n")
+  (let ((result (make-vector vec-length 0))
+	(indices (map (lambda (name)
+			(list-ref (map cadr all-values)
+				  (element-lookup-index name (map car all-values) 0)))
+		      values)))
+    (logit 3 "indices: " indices "\n")
+    (for-each (lambda (x)
+		(let* ((byteno (quotient x 8))
+		       (bitno (- 7 (remainder x 8)))
+		       (byteval (logior (vector-ref result byteno)
+					(ash 1 bitno))))
+		  (vector-set! result byteno byteval)))
+	      indices)
+    (logit 3 "result: " (vector->list result) "\n")
+    (vector->list result))
+)
+
+; Convert a bitset value into a bit string based on the
+; index of each member in values
+(define (bitset-attr->charmask value values)
+  (let* ((values-names (map car values))
+	 (values-values (map cadr values))
+	 (vec-length (+ 1 (quotient (apply max values-values) 8))))
+    (string-append "{ " (number->string vec-length) ", \""
+		   (string-map (lambda (x)
+				 (string-append "\\x" (number->hex x)))
+			       (charmask-bytes (bitset-attr->list value)
+					       values vec-length))
+		   "\" }"))
+)
 ; Return the enum of ATTR-NAME for type TYPE.
 ; TYPE is one of 'ifld, 'hw, 'operand, 'insn.
 
@@ -667,8 +805,8 @@
     (for-each (lambda (elm)
 		(cond ((symbol? elm)
 		       ; boolean attribute
-		       (if (char=? (string-ref elm 0) #\!)
-			   (set! alist (acons (string->symbol (string-drop1 elm)) #f alist))
+		       (if (char=? (string-ref (symbol->string elm) 0) #\!)
+			   (set! alist (acons (string->symbol (string-drop1 (symbol->string elm))) #f alist))
 			   (set! alist (acons elm #t alist)))
 		       (if (not (current-attr-lookup (caar alist)))
 			   (context-error context "unknown attribute" (caar alist))))
@@ -832,37 +970,106 @@
 ; (maybe utils-cgen.scm?) and there's only a few of them.
 
 (method-make!
- <boolean-attribute> 'gen-value-for-defn
+ <boolean-attribute> 'gen-value-for-defn-raw
  (lambda (self value)
    (if (not value)
        "0"
        "1"))
- ;(string-upcase (string-append (obj:name self) "_" value)))
+ ;(string-upcase (string-append (obj:str-name self) "_" value)))
+)
+
+(method-make!
+ <boolean-attribute> 'gen-value-for-defn
+ (lambda (self value)
+   (send self 'gen-value-for-defn-raw value))
+)
+
+(method-make!
+ <bitset-attribute> 'gen-value-for-defn-raw
+ (lambda (self value)
+   (if (string=? (string-downcase (gen-sym self)) "isa")
+       (bitset-attr->charmask value (elm-get self 'values))
+       (string-drop1
+	(string-upcase
+	 (string-map (lambda (x)
+		       (string-append "|(1<<"
+				      (gen-sym self)
+				      "_" (gen-c-symbol x) ")"))
+		     (bitset-attr->list value)))))
+ )
 )
 
 (method-make!
  <bitset-attribute> 'gen-value-for-defn
  (lambda (self value)
-   (string-drop1
-    (string-upcase
-     (string-map (lambda (x)
-		   (string-append "|(1<<"
-				  (gen-sym self)
-				  "_" (gen-c-symbol x) ")"))
-		 (bitset-attr->list value)))))
+   (string-append
+    "{ "
+    (if (string=? (string-downcase (gen-sym self)) "isa")
+	(bitset-attr->charmask value (elm-get self 'values))
+	(string-append
+	 "{ "
+	 (string-drop1
+	  (string-upcase
+	   (string-map (lambda (x)
+			 (string-append "|(1<<"
+					(gen-sym self)
+					"_" (gen-c-symbol x) ")"))
+		       (bitset-attr->list value))))
+	 ", 0 }"))
+    " }")
+ )
+)
+
+(method-make!
+ <integer-attribute> 'gen-value-for-defn-raw
+ (lambda (self value)
+   (number->string value)
+ )
 )
 
 (method-make!
  <integer-attribute> 'gen-value-for-defn
  (lambda (self value)
-   (number->string value))
+   (string-append
+    "{ { "
+    (send self 'gen-value-for-defn-raw value)
+    ", 0 } }")
+ )
+)
+
+(method-make!
+ <enum-attribute> 'gen-value-for-defn-raw
+ (lambda (self value)
+   (string-upcase
+    (gen-c-symbol (string-append (obj:str-name self)
+				 "_"
+				 (symbol->string value))))
+ )
 )
 
 (method-make!
  <enum-attribute> 'gen-value-for-defn
  (lambda (self value)
-   (string-upcase (gen-c-symbol (string-append (obj:name self) "_" value))))
+   (string-append
+    "{ { "
+     (send self 'gen-value-for-defn-raw value)
+     ", 0 } }")
+ )
 )
+
+;; Doesn't handle escape sequences.
+(method-make!
+ <string-attribute> 'gen-value-for-defn-raw
+ (lambda (self value)
+   (string-append "\"" value "\""))
+)
+
+(method-make!
+ <string-attribute> 'gen-value-for-defn
+ (lambda (self value)
+   (send self 'gen-value-for-defn-raw value))
+)
+
 
 ; Called before loading a .cpu file to initialize.
 

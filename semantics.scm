@@ -260,7 +260,7 @@
     (else #f))
 )
 
-; Simplify an rtl expresion.
+; Simplify an rtl expression.
 ; EXPR must be in source form.
 ; The result is a possibly simplified EXPR, still in source form.
 ;
@@ -575,7 +575,7 @@
 ; Build the tstate known value list for INSN.
 ; This built from the ifield-assertion list.
 
-(define (-build-known-values insn)
+(define (insn-build-known-values insn)
   (let ((expr (insn-ifield-assertion insn)))
     (if expr
 	(case (rtx-name expr)
@@ -638,6 +638,9 @@
 ; ??? This calls rtx-simplify which calls rtx-traverse as it's simpler to
 ; simplify EXPR first, and then compile it.  On the other hand it's slower
 ; (two calls to rtx-traverse!).
+;
+; FIXME: There's no need for sem-code-list to be a list.
+; The caller always passes (list (insn-semantics insn)).
 
 (define (semantic-compile context insn sem-code-list)
   (for-each (lambda (rtx) (assert (rtx? rtx)))
@@ -755,7 +758,7 @@
 			       context
 			       insn
 			       (rtx-simplify context insn expr
-					     (-build-known-values insn))
+					     (insn-build-known-values insn))
 			       process-expr!
 			       #f))
 			    sem-code-list))
@@ -777,19 +780,17 @@
 
     ; Drop dummy first arg and sort operand lists.
     (let ((sorted-ins
-	   (sort (map (lambda (op)
-			(rtx-xop-obj (cadr op)))
-		      (cdr in-ops))
-		 (lambda (a b) (string<? (obj:name a) (obj:name b)))))
+	   (alpha-sort-obj-list (map (lambda (op)
+				       (rtx-xop-obj (cadr op)))
+				     (cdr in-ops))))
 	  (sorted-outs
-	   (sort (map (lambda (op)
-			(rtx-xop-obj (cadr op)))
-		      (cdr out-ops))
-		 (lambda (a b) (string<? (obj:name a) (obj:name b)))))
+	   (alpha-sort-obj-list (map (lambda (op)
+				       (rtx-xop-obj (cadr op)))
+				     (cdr out-ops))))
 	  (sem-attrs (cdr sem-attrs)))
 
       (let ((in-op-nums (iota (length sorted-ins)))
-	    (out-op-nums (iota (length sorted-ins) (length sorted-outs))))
+	    (out-op-nums (iota (length sorted-outs) (length sorted-ins))))
 
 	(for-each (lambda (op num) (op:set-num! op num))
 		  sorted-ins in-op-nums)
@@ -797,11 +798,11 @@
 		  sorted-outs out-op-nums)
 
 	(let ((dump (lambda (op)
-		      (string-append "  "
-				     (obj:name op)
-				     " "
-				     (number->string (op:num op))
-				     "\n"))))
+		      (string/symbol-append "  "
+					    (obj:name op)
+					    " "
+					    (number->string (op:num op))
+					    "\n"))))
 	  (logit 4
 		 "Input operands:\n"
 		 (map dump sorted-ins)
@@ -823,6 +824,9 @@
 ;
 ; CONTEXT is a <context> object or #f if there is none.
 ; INSN is the <insn> object.
+;
+; FIXME: There's no need for sem-code-list to be a list.
+; The caller always passes (list (insn-semantics insn)).
 
 (define (semantic-attrs context insn sem-code-list)
   (for-each (lambda (rtx) (assert (rtx? rtx)))
@@ -866,7 +870,7 @@
 				context
 				insn
 				(rtx-simplify context insn expr
-					      (-build-known-values insn))
+					      (insn-build-known-values insn))
 				process-expr!
 				#f))
 			     sem-code-list))

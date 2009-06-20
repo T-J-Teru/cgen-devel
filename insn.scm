@@ -40,7 +40,6 @@
 		sfmt
 
 		; Temp slot for use by applications.
-		; ??? Will go away in time.
 		tmp
 
 		; Instruction semantics.
@@ -94,7 +93,7 @@
 )
 
 (define-setters <insn> insn
-  (fmt-desc ifmt sfmt ifield-assertion compiled-semantics)
+  (fmt-desc ifmt sfmt tmp ifield-assertion compiled-semantics)
 )
 
 ; Return a boolean indicating if X is an <insn>.
@@ -272,10 +271,10 @@
 	 (obj:name insn)
 	 ":"
 	 (string-map (lambda (op newval)
-		       (string-append " "
-				      (obj:name op)
-				      "="
-				      (obj:name newval)))
+		       (string/symbol-append " "
+					     (obj:name op)
+					     "="
+					     (obj:name newval)))
 		     anyof-operands new-values)
 	 " ...\n")
 
@@ -512,7 +511,7 @@
 	(cond ((derived-operand? op)
 	       ; There is a one-to-one relationship b/w derived operands and
 	       ; the associated derived ifield.
-	       (let ((ifld (op-ifld op)))
+	       (let ((ifld (op-ifield op)))
 		 (assert (derived-ifield? ifld))
 		 ifld))
 	      ((anyof-operand? op)
@@ -524,7 +523,7 @@
 	(let ((e (ienum-lookup-val sym)))
 	  (if e
 	      (ifld-new-value (ienum:fld (cdr e)) (car e))
-	      (parse-error errtxt "bad format element" sym)))))
+	      (parse-error errtxt "bad format element, expecting symbol to be operand or insn enum" sym)))))
 )
 
 ; Subroutine of -parse-insn-format to parse an (ifield-name value) ifield spec.
@@ -613,7 +612,7 @@
 			     (if (and (list? f)
 				      (ifield? (car f)))
 				 (parse-error errtxt "FIXME: <ifield> object in format spec"))
-			     (parse-error errtxt "bad format element" f)))))
+			     (parse-error errtxt "bad format element, neither symbol nor ifield spec" f)))))
 		  (cdr fld-list)))
 	((=) (begin
 	       (if (or (!= (length fld-list) 2)
@@ -706,45 +705,73 @@
   (find (lambda (insn) (not (multi-insn? insn))) insn-list)
 )
 
+; Filter out instructions whose ifield patterns are strict supersets of
+; another, keeping the less general cousin.  Used to resolve ambiguity
+; when there are no more bits to consider.
 
-; Filter out instructions whose ifield patterns are strict subsets of
-; another.  For decoding purpose, it is sufficient to consider the
-; more general cousin.
-
-(define (filter-harmlessly-ambiguous-insns insn-list)
-  (logit 3 "Filtering " (length insn-list) " instructions.\n")
+(define (filter-non-specialized-ambiguous-insns insn-list)
+  (logit 3 "Filtering " (length insn-list) " instructions for non specializations.\n")
   (find (lambda (insn)
 	  (let* ((i-mask (insn-base-mask insn))
 		 (i-mask-len (insn-base-mask-length insn))
 		 (i-value (insn-value insn))
-		 (superset-insn (find-first 
-				  (lambda (insn2) ; insn2: possible supermatch (fewer mask bits)
+		 (subset-insn (find-first 
+			       (lambda (insn2) ; insn2: possible submatch (more mask bits)
 				    (let ((i2-mask (insn-base-mask insn2))
 					  (i2-mask-len (insn-base-mask-length insn2))
 					  (i2-value (insn-value insn2)))
 				      (and (not (eq? insn insn2))
 					   (= i-mask-len i2-mask-len)
-					   (mask-superset? i2-mask i2-value i-mask i-value))))
+					   (mask-superset? i-mask i-value i2-mask i2-value))))
 				  insn-list))
-		 (keep? (not superset-insn)))
+		 (keep? (not subset-insn)))
 	    (if (not keep?) 
 		(logit 2
-		       "Instruction " (obj:name insn) "ambiguity-filtered by "
-		       (obj:name superset-insn) "\n"))
+		       "Instruction " (obj:name insn) " specialization-filtered by "
+		       (obj:name subset-insn) "\n"))
 	    keep?))
 	insn-list)
 )
 
+; Filter out instructions whose ifield patterns are identical.
 
-; Helper function for above: does (m1,v1) match a superset of (m2,v2) ?
+(define (filter-identical-ambiguous-insns insn-list)
+  (logit 3 "Filtering " (length insn-list) " instructions for identical variants.\n")
+  (let loop ((l insn-list) (result nil))
+    (cond ((null? l) (reverse! result))
+	  ((find-identical-insn (car l) (cdr l)) (loop (cdr l) result))
+	  (else (loop (cdr l) (cons (car l) result)))
+	  )
+    )
+)
+
+(define (find-identical-insn insn insn-list)
+  (let ((i-mask (insn-base-mask insn))
+	(i-mask-len (insn-base-mask-length insn))
+	(i-value (insn-value insn)))
+    (find-first 
+     (lambda (insn2)
+       (let ((i2-mask (insn-base-mask insn2))
+	     (i2-mask-len (insn-base-mask-length insn2))
+	     (i2-value (insn-value insn2)))
+	 (and (= i-mask-len i2-mask-len)
+	      (= i-mask i2-mask)
+	      (= i-value i2-value))))
+       insn-list))
+)
+
+; Helper function for above: does (m1,v1) match a STRICT superset of (m2,v2) ?
 ;
 ; eg> mask-superset? #b1100 #b1000 #b1110 #b1010 -> #t
 ; eg> mask-superset? #b1100 #b1000 #b1010 #b1010 -> #f
 ; eg> mask-superset? #b1100 #b1000 #b1110 #b1100 -> #f
+; eg> mask-superset? #b1100 #b1000 #b1100 #b1000 -> #f
+; 
 (define (mask-superset? m1 v1 m2 v2)
   (let ((result
 	 (and (= (cg-logand m1 m2) m1)
-	      (= (cg-logand m1 v1) (cg-logand m1 v2)))))
+	      (= (cg-logand m1 v1) (cg-logand m1 v2))
+	      (not (and (= m1 m2) (= v1 v2))))))
     (if result (logit 4
 		      "(" (number->string m1 16) "," (number->string v1 16) ")"
 		      " contains "
@@ -846,10 +873,12 @@
 	    (cond 
 	     ; Handle escaped syntax metacharacters 
 	     ((char=? #\\ (string-ref syntax 0))
-	      (set! result (cons (substring syntax 0 1) result))
-	      (set! result (cons (substring syntax 1 1) result))
-	      (set! syntax (string-drop 2 syntax)))
-	     ; Handle operand reference
+	      (begin
+		(if (= (string-length syntax) 1)
+		    (parse-error context "syntax-break-out: missing char after '\\' in " syntax))
+		(set! result (cons (substring syntax 1 2) result))
+		(set! syntax (string-drop 2 syntax))))
+		; Handle operand reference
 	     ((char=? #\$ (string-ref syntax 0))
 	      ; Extract the symbol from the string, get the operand.
 	      (if (char=? #\{ (string-ref syntax 1))
@@ -870,7 +899,7 @@
 		   (set! syntax (string-drop1 syntax))))
 	    (loop))))
     (reverse result))
-  )
+)
 
 ; Given a list of syntax elements (e.g. the result of syntax-break-out),
 ; create a syntax string.
@@ -884,7 +913,7 @@
 		       e)
 		      (else
 		       (assert (operand? e))
-		       (string-append "${" (obj:name e) "}"))))
+		       (string-append "${" (obj:str-name e) "}"))))
 	      elements))
 )
 
@@ -930,11 +959,12 @@ Define an instruction, all arguments specified.
   ; them together.
   ; FIXME: This is a case where we need one attribute with several values.
   ; Presently each RELAX_FOO will use up a bit.
-  (define-attr '(for insn) '(type boolean) '(name RELAXABLE) '(comment "insn is relaxable"))
+  (define-attr '(for insn) '(type boolean) '(name RELAXABLE)
+    '(comment "insn is relaxable"))
 
-  ; RELAX: Large relaxable variant.  Avoided by assembler in first pass.
-  ; FIXME: Rename this to RELAXED.
-  (define-attr '(for insn) '(type boolean) '(name RELAX) '(comment "relaxed form of insn"))
+  ; RELAXED: Large relaxable variant.  Avoided by assembler in first pass.
+  (define-attr '(for insn) '(type boolean) '(name RELAXED)
+    '(comment "relaxed form of insn"))
 
   ; NO-DIS: For macro insns, do not use during disassembly.
   (define-attr '(for insn) '(type boolean) '(name NO-DIS) '(comment "don't use for disassembly"))

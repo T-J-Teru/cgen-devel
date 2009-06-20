@@ -1,6 +1,6 @@
 ; Simulator generator entry point.
 ; This is invoked to build: arch.h, cpu-<cpu>.h, memops.h, semops.h, decode.h,
-; decode.c, extract.c, semantics.c, ops.c, model.c, mainloop.in.
+; decode.c, defs.h, extract.c, semantics.c, ops.c, model.c, mainloop.in.
 ;
 ; memops.h, semops.h, ops.c, mainloop.in are either deprecated or wip.
 ;
@@ -13,9 +13,6 @@
 ; Load the various support routines.
 
 (define (load-files srcdir)
-  ; Fix up Scheme to be what we use (guile is always in flux).
-  (primitive-load-path (string-append srcdir "/fixup.scm"))
-
   (load (string-append srcdir "/read.scm"))
   (load (string-append srcdir "/utils-sim.scm"))
   (load (string-append srcdir "/sim.scm"))
@@ -27,39 +24,59 @@
 
 (define sim-arguments
   (list
-   (list '-A "file" "generate arch.h in <file>"
+   (list "-A" "file" "generate arch.h in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-arch.h)))
-   (list '-B "file" "generate arch.c in <file>"
+   (list "-B" "file" "generate arch.c in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-arch.c)))
-   (list '-C "file" "generate cpu-<cpu>.h in <file>"
+   (list "-C" "file" "generate cpu-<cpu>.h in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-cpu.h)))
-   (list '-U "file" "generate cpu-<cpu>.c in <file>"
+   (list "-U" "file" "generate cpu-<cpu>.c in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-cpu.c)))
-   (list '-N "file" "generate cpu-all.h in <file>"
+   (list "-N" "file" "generate cpu-all.h in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-cpuall.h)))
-   (list '-F "file" "generate memops.h in <file>"
+   (list "-F" "file" "generate memops.h in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-mem-ops.h)))
-   (list '-P "file" "generate semops.h in <file>"
+   (list "-G" "file" "generate defs.h in <file>"
+	 #f
+	 (lambda (arg) (file-write arg cgen-defs.h)))
+   (list "-P" "file" "generate semops.h in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-sem-ops.h)))
-   (list '-T "file" "generate decode.h in <file>"
+   (list "-T" "file" "generate decode.h in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-decode.h)))
-   (list '-D "file" "generate decode.c in <file>"
+   (list "-D" "file" "generate decode.c in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-decode.c)))
-   (list '-E "file" "generate extract.c in <file>"
+   (list "-E" "file" "generate extract.c in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-extract.c)))
-   (list '-R "file" "generate read.c in <file>"
+   (list "-R" "file" "generate read.c in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-read.c)))
-   (list '-W "file" "generate write.c in <file>"
+   (list "-W" "file" "generate write.c in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-write.c)))
-   (list '-S "file" "generate semantics.c in <file>"
+   (list "-S" "file" "generate semantics.c in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-semantics.c)))
-   (list '-X "file" "generate sem-switch.c in <file>"
+   (list "-X" "file" "generate sem-switch.c in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-sem-switch.c)))
-   (list '-O "file" "generate ops.c in <file>"
+   (list "-O" "file" "generate ops.c in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-ops.c)))
-   (list '-M "file" "generate model.c in <file>"
+   (list "-M" "file" "generate model.c in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-model.c)))
-   (list '-L "file" "generate mainloop.in in <file>"
+   (list "-L" "file" "generate mainloop.in in <file>"
+	 #f
 	 (lambda (arg) (file-write arg cgen-mainloop.in)))
    )
 )
@@ -84,7 +101,7 @@
 	  (if (null? (cdr argv))
 	      (error "missing srcdir arg to `-s'"))
 	  (cadr argv))
-	(loop (cdr argv))))	
+	(loop (cdr argv))))
 )
 
 ; Main routine, parses options and calls generators.

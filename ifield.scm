@@ -1,5 +1,5 @@
 ; Instruction fields.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000,2002 Red Hat, Inc.
 ; This file is part of CGEN.
 ; See file COPYING.CGEN for details.
 
@@ -91,42 +91,11 @@
 (define (ifld-decode-mode f) (ifld-mode f))
 
 ; Return start of ifield.
-; WORD-LEN is the length of the word in which to compute the value or
-; #f meaning to use the default length (recorded with the bitrange).
-; WORD-LEN is present for architectures like the m32r where there are insns
-; smaller than the base insn size (LIW).
-; ??? Not sure it'll be applicable to other LIW architectures.  The m32r is
-; rather easy as the insns are 16 and 32 bits.
-; ??? Another way to do this would be to either set the base-insn-size for
-; the m32r to be 16 bits, or to add a new field to hold the insn-word-size
-; and set it to 16 for the m32r.  The problem here is that there is no
-; canonicalization that works regardless of whether a "word" is shortened
-; or lengthened.
 
 (method-make-virtual!
  <ifield> 'field-start
  (lambda (self word-len)
-   (let* ((bitrange (-ifld-bitrange self))
-	  (lsb0? (bitrange-lsb0? bitrange))
-	  (recorded-word-len (bitrange-word-length bitrange))
-	  (wanted-word-len (or word-len recorded-word-len)))
-     ; Note that this is only intended for situations like the m32r.
-     ; If it doesn't work elsewhere, it may be that you need to
-     ; do things different (use two fields instead of one).
-     (cond ((= wanted-word-len recorded-word-len)
-	    (bitrange-start bitrange))
-	   ((< wanted-word-len recorded-word-len)
-	    ; smaller word wanted
-	    (if lsb0?
-		(- (bitrange-start bitrange) (- recorded-word-len
-						wanted-word-len))
-		(bitrange-start bitrange)))
-	   (else
-	    ; larger word wanted
-	    (if lsb0?
-		(+ (bitrange-start bitrange) (- wanted-word-len
-						recorded-word-len))
-		(bitrange-start bitrange))))))
+   (bitrange-start (-ifld-bitrange self)))
 )
 
 (define (ifld-start ifld word-len)
@@ -165,7 +134,7 @@
 
 (define (ifield? x) (class-instance? <ifield> x))
 
-; Return ilk of field.
+; Return ilk of field as a string.
 ; ("ilk" sounds klunky but "type" is too ambiguous.  Here "ilk" means
 ; the kind of the hardware element, enum, etc.)
 ; The result is a character string naming the field type.
@@ -175,7 +144,7 @@
     ; ??? One could require that the `value' field always be an object.
     ; I can't get too worked up over it yet.
     (if (object? value)
-	(obj:name value) ; send's message 'get-name to fetch object's `name'
+	(symbol->string (obj:name value)) ; send 'get-name to fetch the name
 	"#")) ; # -> "it's a number"
 )
 
@@ -460,9 +429,9 @@
 	 (atlist (atlist-parse attrs "cgen_ifld" errtxt))
 	 (isas (bitset-attr->list (atlist-attr-value atlist 'ISA #f))))
 
-    ; Ensure only one isa specified.
-    (if (!= (length isas) 1)
-	(parse-error errtxt "can only specify 1 isa" attrs))
+    ; No longer ensure only one isa specified.
+    ;(if (!= (length isas) 1)
+    ;	(parse-error errtxt "can only specify 1 isa" attrs))
 
     (if (not (eq? (->bool word-offset)
 		  (->bool word-length)))
@@ -485,34 +454,30 @@
 	      )
 
 	  ; Calculate the <bitrange> object.
-	  ; FIXME: word-offset/word-length computation needs work.
-	  ; Move positional info to format?
+	  ; ??? Move positional info to format?
 	  (let ((bitrange
 		 (if word-offset
-		     ; CISC
+
+		     ; CISC-like. Easy. Everything must be specified.
 		     (make <bitrange>
 		       word-offset start flength word-length lsb0?)
-		     ; RISC
-		     (let* ((default-insn-word-bitsize
-			      (isa-default-insn-word-bitsize isa))
-			    (word-offset
-			     (- start
-				(remainder start
-					   default-insn-word-bitsize)))
-			    (start (remainder start default-insn-word-bitsize)))
+
+		     ; RISC-like. Hard. Have to make best choice of start,
+		     ; flength. This doesn't have to be perfect, just easily
+		     ; explainable.  Cases this doesn't handle can explicitly
+		     ; specify word-offset,word-length.
+		     ; One can certainly argue the choice of the term
+		     ; "RISC-like" is inaccurate.  Perhaps.
+		     (let* ((diwb (isa-default-insn-word-bitsize isa))
+			    (word-offset (-get-ifld-word-offset start flength diwb lsb0?))
+			    (word-length (-get-ifld-word-length start flength diwb lsb0?))
+			    (start (- start word-offset))
+			    )
 		       (make <bitrange>
 			 word-offset
 			 start
 			 flength
-			 (if lsb0?
-			     (* (quotient (+ start 1
-					     (- default-insn-word-bitsize 1))
-					  default-insn-word-bitsize)
-				default-insn-word-bitsize)
-			     (* (quotient (+ start flength
-					     (- default-insn-word-bitsize 1))
-					  default-insn-word-bitsize)
-				default-insn-word-bitsize))
+			 word-length
 			 lsb0?))))
 		 )
 
@@ -533,6 +498,44 @@
 	(begin
 	  (logit 2 "Ignoring " name ".\n")
 	  #f)))
+)
+
+; Subroutine of -ifield-parse to simplify it.
+; Given START,FLENGTH, return the "best" choice for the offset to the word
+; containing the ifield.
+; This is easy to visualize, hard to put into words.
+; Imagine several words of size DIWB laid out from the start of the insn.
+; On top of that lay the ifield.
+; Now pick the minimal set of words that are required to contain the ifield.
+; That's what we want.
+; No claim is made that this is always the correct choice for any
+; particular architecture.  For those where this isn't correct, the ifield
+; must be fully specified (i.e. word-offset,word-length explicitly specified).
+
+(define (-get-ifld-word-offset start flength diwb lsb0?)
+  (if lsb0?
+      ; Convert to non-lsb0 case, then it's easy.
+      ; NOTE: The conversion is seemingly wrong because `start' is misnamed.
+      ; It's now `end'.
+      (set! start (+ (- start flength) 1)))
+  (- start (remainder start diwb))
+)
+
+; Subroutine of -ifield-parse to simplify it.
+; Given START,FLENGTH, return the "best" choice for the length of the word
+; containing the ifield.
+; DIWB = default insn word bitsize
+; See -get-ifld-word-offset for more info.
+
+(define (-get-ifld-word-length start flength diwb lsb0?)
+  (if lsb0?
+      ; Convert to non-lsb0 case, then it's easy.
+      ; NOTE: The conversion is seemingly wrong because `start' is misnamed.
+      ; It's now `end'.
+      (set! start (+ (- start flength) 1)))
+  (* (quotient (+ (remainder start diwb) flength (- diwb 1))
+	       diwb)
+     diwb)
 )
 
 ; Read an instruction field description.
@@ -857,34 +860,44 @@ Define an instruction multi-field, all arguments specified.
 (define (-multi-ifield-parse errtxt name comment attrs mode subfields insert extract encode decode)
   (logit 2 "Processing multi-ifield element " name " ...\n")
 
-  (let ((name (parse-name name errtxt))
-	(result (new <multi-ifield>))
-	(subfields (map (lambda (subfld)
-			  (let ((f (current-ifld-lookup subfld)))
-			    (if (not f)
-				(parse-error errtxt "unknown ifield" subfld))
-			    f))
-			subfields)))
-
-    (elm-xset! result 'name name)
-    (elm-xset! result 'comment (parse-comment comment errtxt))
-    ; multi-ifields are always VIRTUAL
-    (elm-xset! result 'attrs
-	       (atlist-parse (cons 'VIRTUAL attrs) "multi-ifield" errtxt))
-    (elm-xset! result 'mode (parse-mode-name mode errtxt))
-    (elm-xset! result 'encode (-ifld-parse-encode errtxt encode))
-    (elm-xset! result 'decode (-ifld-parse-encode errtxt decode))
-    (if insert
-	(elm-xset! result 'insert insert)
-	(elm-xset! result 'insert
-		   (-multi-ifield-make-default-insert name subfields)))
-    (if extract
-	(elm-xset! result 'extract extract)
-	(elm-xset! result 'extract
-		   (-multi-ifield-make-default-extract name subfields)))
-    (elm-xset! result 'subfields subfields)
-
-    result)
+  (let* ((name (parse-name name errtxt))
+	 (atlist (atlist-parse attrs "cgen_ifld" errtxt))
+	 (isas (bitset-attr->list (atlist-attr-value atlist 'ISA #f))))
+    
+    ; No longer ensure only one isa specified.
+    ; (if (!= (length isas) 1) 
+    ;     (parse-error errtxt "can only specify 1 isa" attrs))
+    
+    (if (keep-isa-atlist? atlist #f)
+	(begin
+	  (let ((result (new <multi-ifield>))
+		(subfields (map (lambda (subfld)
+				  (let ((f (current-ifld-lookup subfld)))
+				    (if (not f)
+					(parse-error errtxt "unknown ifield" subfld))
+				    f))
+				subfields)))
+	    
+	    (elm-xset! result 'name name)
+	    (elm-xset! result 'comment (parse-comment comment errtxt))
+					; multi-ifields are always VIRTUAL
+	    (elm-xset! result 'attrs
+		       (atlist-parse (cons 'VIRTUAL attrs) "multi-ifield" errtxt))
+	    (elm-xset! result 'mode (parse-mode-name mode errtxt))
+	    (elm-xset! result 'encode (-ifld-parse-encode errtxt encode))
+	    (elm-xset! result 'decode (-ifld-parse-encode errtxt decode))
+	    (if insert
+		(elm-xset! result 'insert insert)
+		(elm-xset! result 'insert
+			   (-multi-ifield-make-default-insert name subfields)))
+	    (if extract
+		(elm-xset! result 'extract extract)
+		(elm-xset! result 'extract
+			   (-multi-ifield-make-default-extract name subfields)))
+	    (elm-xset! result 'subfields subfields)
+	    result))
+	; else don't keep isa
+	#f))
 )
 
 ; Read an instruction multi-ifield.
@@ -929,7 +942,8 @@ Define an instruction multi-field, all arguments specified.
 (define define-multi-ifield
   (lambda arg-list
     (let ((f (apply -multi-ifield-read (cons "define-multi-ifield" arg-list))))
-      (current-ifld-add! f)
+      (if f
+	  (current-ifld-add! f))
       f))
 )
 
@@ -970,6 +984,15 @@ Define an instruction multi-field, all arguments specified.
 		)
 	      nil)
 )
+
+
+(method-make!
+ <derived-ifield> 'needed-iflds
+ (lambda (self)
+   (find (lambda (ifld) (not (ifld-constant? ifld)))
+	 (elm-get self 'subfields)))
+)
+
 
 (method-make!
  <derived-ifield> 'make!

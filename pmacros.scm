@@ -41,8 +41,8 @@
 
 ; Builtin macros:
 ;
-; (.sym symbol1 symbol2 ...)          - symbol-append
-; (.str string1 string2 ...)          - string-append
+; (.sym symbol1 symbol2 ...)          - symbolstr-append
+; (.str string1 string2 ...)          - stringsym-append
 ; (.hex number)                       - convert to hex string
 ; (.upcase string)                    - convert to uppercase
 ; (.downcase string)                  - convert to lowercase
@@ -229,11 +229,11 @@
 			((and (list? exp) (not (null? exp))) (scan-list exp))
 			; Not a symbol or expression, return unchanged.
 			(else exp))))
-      ; ??? We use to re-examine `result' to see if it was another pmacro
-      ; invocation.  This allowed doing things like ((.sym a b c) arg1 arg2)
-      ; where `abc' is a pmacro.  Scheme doesn't work this way, so it was
-      ; removed.  It can be put back should it ever be warranted.
-      result))
+      ; Re-examining `result' to see if it is another pmacro invocation
+      ; allows doing things like ((.sym a b c) arg1 arg2)
+      ; where `abc' is a pmacro.  Scheme doesn't work this way, but then
+      ; this is CGEN.
+      (if (symbol? result) (scan-symbol result) result)))
 
   (if -pmacro-trace?
       (begin
@@ -313,8 +313,8 @@
 ; Build a procedure that performs a pmacro expansion.
 
 (define (-pmacro-build-lambda params expansion)
-  (eval `(lambda ,params
-	   (-pmacro-expand ',expansion (-pmacro-env-make ',params (list ,@params)))))
+  (eval1 `(lambda ,params
+	    (-pmacro-expand ',expansion (-pmacro-env-make ',params (list ,@params)))))
 )
 
 ; ??? I'd prefer to use `define-macro', but boot-9.scm uses it and
@@ -380,12 +380,15 @@
 
 (define -pmacro-sym
   (lambda args
-    (apply symbol-append
-	   (map (lambda (elm)
-		  (if (number? elm)
-		      (number->string elm)
-		      elm))
-		args)))
+    (string->symbol
+     (apply string-append
+	    (map (lambda (elm)
+		   (cond ((number? elm) (number->string elm))
+			 ((symbol? elm) (symbol->string elm))
+			 ((string? elm) elm)
+			 (else
+			  (-pmacro-error "invalid argument to .str" elm))))
+		 args))))
 )
 
 ; .str - string-append, auto-convert numbers
@@ -394,9 +397,11 @@
   (lambda args
     (apply string-append
 	   (map (lambda (elm)
-		  (if (number? elm)
-		      (number->string elm)
-		      elm))
+		  (cond ((number? elm) (number->string elm))
+			((symbol? elm) (symbol->string elm))
+			((string? elm) elm)
+			(else
+			 (-pmacro-error "invalid argument to .str" elm))))
 		args)))
 )
 
@@ -419,13 +424,19 @@
 ; .upcase - convert a string to uppercase
 
 (define (-pmacro-upcase str)
-  (string-upcase str)
+  (cond
+   ((string? str) (string-upcase str))
+   ((symbol? str) (string->symbol (string-upcase (symbol->string str))))
+   (else (-pmacro-error "invalid argument to .upcase" str)))
 )
 
 ; .downcase - convert a string to lowercase
 
 (define (-pmacro-downcase str)
-  (string-downcase str)
+  (cond
+   ((string? str) (string-downcase str))
+   ((symbol? str) (string->symbol (string-downcase (symbol->string str))))
+   (else (-pmacro-error "invalid argument to .downcase" str)))
 )
 
 ; .substring - get part of a string
@@ -555,7 +566,7 @@
 
   ; doesn't work, Hobbit creates "eval" variable
   ;(-pmacro-set! '.eval (-pmacro-make '.eval '(expr) #f eval "eval"))
-  (-pmacro-set! '.eval (-pmacro-make '.eval '(expr) #f (eval 'eval) "eval"))
+  (-pmacro-set! '.eval (-pmacro-make '.eval '(expr) #f (eval1 'eval1) "eval"))
 )
 
 ; Initialize so we're ready to use after loading.

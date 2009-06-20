@@ -1,4 +1,4 @@
-@c Copyright (C) 2000 Red Hat, Inc.
+@c Copyright (C) 2000, 2009 Red Hat, Inc.
 @c This file is part of the CGEN manual.
 @c For copying conditions, see the file cgen.texi.
 
@@ -7,7 +7,7 @@
 @cindex Simulation support
 
 Simulator support comes in the form of machine generated the decoder/executer
-as well as the structure that records CPU state information (ie. registers).
+as well as the structure that records CPU state information (i.e., registers).
 
 There are 3 architecture-wide generated files:
 
@@ -42,4 +42,4 @@ Same as @file{semantics.c} but as one giant @code{switch} statement.
 
 A ``CPU family'' is an artificial creation to sort architecture variants
 along whatever lines seem useful.  Additional hand-written files must be
-provided.  @xref{Porting} for details.
+provided.  @xref{Porting}, for details.

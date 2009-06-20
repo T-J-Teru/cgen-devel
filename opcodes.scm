@@ -1,5 +1,5 @@
 ; General cpu info generator support.
-; Copyright (C) 2000 Red Hat, Inc.
+; Copyright (C) 2000, 2002, 2005 Red Hat, Inc.
 ; This file is part of CGEN.
 
 ; Global state variables.
@@ -36,15 +36,15 @@
     ((opinst) (set! -opcodes-build-operand-instance-table? #t))
     ((copyright) (cond ((equal?  value '("fsf"))
 			(set! CURRENT-COPYRIGHT copyright-fsf))
-		       ((equal? value '("cygnus"))
-			(set! CURRENT-COPYRIGHT copyright-cygnus))
+		       ((equal? value '("redhat"))
+			(set! CURRENT-COPYRIGHT copyright-red-hat))
 		       (else (error "invalid copyright value" value))))
     ((package) (cond ((equal?  value '("binutils"))
 		      (set! CURRENT-PACKAGE package-gnu-binutils-gdb))
 		     ((equal?  value '("gnusim"))
 		      (set! CURRENT-PACKAGE package-gnu-simulators))
 		     ((equal? value '("cygsim"))
-		      (set! CURRENT-PACKAGE package-cygnus-simulators))
+		      (set! CURRENT-PACKAGE package-red-hat-simulators))
 		     (else (error "invalid package value" value))))
     (else (error "unknown option" name))
     )
@@ -334,8 +334,15 @@
 		      (obj:name mode)))))
    " (cd, strp, "
    op-enum
-   ", &" result-var-name
-   ");\n"
+   ", "
+   ; This is to pacify gcc 4.x which will complain about
+   ; incorrect signed-ness of pointers passed to functions.
+   (case (obj:name mode)
+	 ((QI HI SI INT) "(long *)")
+	 ((BI UQI UHI USI UINT) "(unsigned long *)")
+   )
+   " (& " result-var-name
+   "));\n"
    )
 )
 
@@ -348,7 +355,7 @@
 (define (-gen-parse-address parse-fn op-enum result-var-name)
   (string-append
    "      {\n"
-   "        bfd_vma value;\n"
+   "        bfd_vma value = 0;\n"
    "        errmsg = "
    ; Use operand's special parse function if there is one.
    (or parse-fn
@@ -516,7 +523,8 @@
    (lambda (ops)
      ; OPS is a list of operands with the same name that for whatever reason
      ; were defined separately.
-     (logit 3 (string-append "Processing " (obj:name (car ops)) " " what " ...\n"))
+     (logit 3 (string/symbol-append
+	       "Processing " (obj:str-name (car ops)) " " what " ...\n"))
      (if (= (length ops) 1)
 	 (gen-obj-sanitize
 	  (car ops)
@@ -559,7 +567,7 @@
  (lambda (self what)
    (let ((handlers (elm-get self 'handlers)))
      (let ((fn (assq-ref handlers what)))
-       (and fn (string-append what "_" (car fn))))))
+       (and fn (string-append (symbol->string what) "_" (car fn))))))
 )
 
 ; Interface fns.
@@ -662,6 +670,7 @@
 
 (define (opcodes-init!)
   (desc-init!)
+  (mode-set-biggest-word-bitsizes!)
   *UNSPECIFIED*
 )
 
@@ -696,7 +705,6 @@
 )
 
 ; Extra target specific code generation.
-; For now, such code lives in <arch>.opc.
 
 ; Pick out a section from the .opc file.
 ; The section is delimited with:
@@ -707,8 +715,8 @@
 ; FIXME: This is a pretty involved bit of code.  'twould be nice to split
 ; it up into manageable chunks.
 
-(define (read-cpu.opc srcdir cpu delim)
-  (let ((file (string-append srcdir "/" (current-arch-name) ".opc"))
+(define (read-cpu.opc opc-file delim)
+  (let ((file opc-file)
 	(start-delim (string-append "/* -- " delim))
 	(end-delim "/* -- "))
     (if (file-exists? file)
@@ -753,38 +761,37 @@
 	))
 )
 
-; FIXME: collapse into one?
-(define (gen-extra-cpu.h srcdir arch)
+(define (gen-extra-cpu.h opc-file arch)
   (logit 2 "Generating extra cpu.h stuff from " arch ".opc ...\n")
-  (read-cpu.opc srcdir arch "cpu.h")
+  (read-cpu.opc opc-file "cpu.h")
 )
-(define (gen-extra-cpu.c srcdir arch)
+(define (gen-extra-cpu.c opc-file arch)
   (logit 2 "Generating extra cpu.c stuff from " arch ".opc ...\n")
-  (read-cpu.opc srcdir arch "cpu.c")
+  (read-cpu.opc opc-file "cpu.c")
 )
-(define (gen-extra-opc.h srcdir arch)
+(define (gen-extra-opc.h opc-file arch)
   (logit 2 "Generating extra opc.h stuff from " arch ".opc ...\n")
-  (read-cpu.opc srcdir arch "opc.h")
+  (read-cpu.opc opc-file "opc.h")
 )
-(define (gen-extra-opc.c srcdir arch)
+(define (gen-extra-opc.c opc-file arch)
   (logit 2 "Generating extra opc.c stuff from " arch ".opc ...\n")
-  (read-cpu.opc srcdir arch "opc.c")
+  (read-cpu.opc opc-file "opc.c")
 )
-(define (gen-extra-asm.c srcdir arch)
+(define (gen-extra-asm.c opc-file arch)
   (logit 2 "Generating extra asm.c stuff from " arch ".opc ...\n")
-  (read-cpu.opc srcdir arch "asm.c")
+  (read-cpu.opc opc-file "asm.c")
 )
-(define (gen-extra-dis.c srcdir arch)
+(define (gen-extra-dis.c opc-file arch)
   (logit 2 "Generating extra dis.c stuff from " arch ".opc ...\n")
-  (read-cpu.opc srcdir arch "dis.c")
+  (read-cpu.opc opc-file "dis.c")
 )
-(define (gen-extra-ibld.h srcdir arch)
+(define (gen-extra-ibld.h opc-file arch)
   (logit 2 "Generating extra ibld.h stuff from " arch ".opc ...\n")
-  (read-cpu.opc srcdir arch "ibld.h")
+  (read-cpu.opc opc-file "ibld.h")
 )
-(define (gen-extra-ibld.c srcdir arch)
+(define (gen-extra-ibld.c opc-file arch)
   (logit 2 "Generating extra ibld.c stuff from " arch ".opc ...\n")
-  (read-cpu.opc srcdir arch "ibld.c")
+  (read-cpu.opc opc-file "ibld.c")
 )
 
 ; For debugging.
