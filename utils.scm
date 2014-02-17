@@ -582,12 +582,6 @@
   (if (null? lis) knil 
       (kons (car lis) (foldr kons knil (cdr lis)))))
 
-;; filter list on predicate
-
-(define (filter p ls)
-  (foldr (lambda (x a) (if (p x) (cons x a) a)) 
-	 '() ls))
-
 ; APL's +\ operation on a vector of numbers.
 
 (define (plus-scan l)
