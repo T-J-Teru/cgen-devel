@@ -984,7 +984,7 @@
 	(loop (+ result (remainder bits 2)) (quotient bits 2))))
 )
 
-; Convert bits in N #f/#t.
+; Convert bits in N to #f/#t list.
 ; LENGTH is the length of N in bits.
 
 (define (bits->bools n length)
