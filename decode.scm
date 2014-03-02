@@ -235,7 +235,7 @@
 	 (num-insns (length masks)))
     ; Compute the 1- and 0-population vectors
     (for-each (lambda (mask len value)
-		(logit 5 " population count mask=" (number->hex mask) " len=" len "\n")
+		(logit 5 " population count mask=0x" (number->hex mask) " len=" len "\n")
 		(for-each (lambda (bitno)
 			    (let ((lsb-bitno (if lsb0? bitno (- len bitno 1))))
 			      ; ignore this bit if it's not set in the mask
