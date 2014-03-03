@@ -163,6 +163,9 @@ void
   @arch@_cgen_init_ibld_table (cd);
   cd->print_handlers = & @arch@_cgen_print_handlers[0];
   cd->print_operand = @arch@_cgen_print_operand;
+#ifdef CGEN_DIS_INIT_HOOK
+CGEN_DIS_INIT_HOOK
+#endif
 "
    /dis-init-code
 "}\n\n"
