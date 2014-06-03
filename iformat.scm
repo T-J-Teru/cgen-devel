@@ -46,14 +46,16 @@
 		; List of <ifield> objects.
 		ifields
 
-		; min (insn-length, base-insn-size)
-		mask-length
-
 		; total length of insns with this format
 		length
 
-		; mask of base part
-		mask
+                ; list of lengths of each element of the instruction
+                ; Example: In an insn with a 16 bit opcode followed by a
+		; 32 bit immediate value this would be (16 32).
+		mask-lengths		      
+
+		; list of masks.
+		masks
 
 		; An example insn that uses the format.
 		eg-insn
@@ -64,7 +66,7 @@
 ; Accessor fns.
 
 (define-getters <iformat> ifmt
-  (number key ifields mask-length length mask eg-insn)
+  (number key ifields mask-lengths length masks eg-insn)
 )
 
 ; Return enum cgen_fmt_type value for FMT.
@@ -92,18 +94,25 @@
 ; ??? The algorithm here is a bit odd.  [Though there is value in verifying
 ; ifields are from consistent ISAs.]
 
-(define (compute-insn-base-mask-length fld-list)
-  (let* ((isa-base-bitsizes
-	  (remove-duplicates
-	   (map isa-base-insn-bitsize
-		(map current-isa-lookup
-		     (collect (lambda (ifld) 
-				(atlist-attr-value (obj-atlist ifld) 'ISA #f))
-			      fld-list))))))
-    (if (= 1 (length isa-base-bitsizes))
-	(min (car isa-base-bitsizes) (compute-insn-length fld-list))
-	(error "ifields have inconsistent isa/base-insn-size values:" isa-base-bitsizes)))
-)
+;; (define (compute-insn-base-mask-length fld-list)
+;;   (let* ((isa-base-bitsizes
+;; 	  (remove-duplicates
+;; 	   (map isa-base-insn-bitsize
+;; 		(map current-isa-lookup
+;; 		     (collect (lambda (ifld) 
+;; 				(atlist-attr-value (obj-atlist ifld) 'ISA #f))
+;; 			      fld-list))))))
+;;     (if (= 1 (length isa-base-bitsizes))
+;; 	(min (car isa-base-bitsizes) (compute-insn-length fld-list))
+;; 	(error "ifields have inconsistent isa/base-insn-size values:" isa-base-bitsizes)))
+;; )
+
+; Utility to return (word-start . word-length) for <ifield> f.
+
+(define (-ifmt-ifield-word f)
+  (cons (ifld-word-offset f) (ifld-word-length f))
+ )
+
 
 ; Given FLD-LIST, compute the bitmask of constant values in the base part
 ; of the insn (i.e. the opcode field).
@@ -115,19 +124,76 @@
 ;
 ; See also (insn-value).
 ;
-(define (compute-insn-base-mask fld-list)
-  (let* ((mask-len (compute-insn-base-mask-length fld-list))
-	 (lsb0? (ifld-lsb0? (car fld-list)))
-	 (mask-bitrange (make <bitrange>
-			      0 ; word-offset
-			      (if lsb0? (- mask-len 1) 0) ; start
-			      mask-len ; length
-			      mask-len ; word-length
-			      lsb0?)))
-    (apply +
-	   (map (lambda (fld) (ifld-mask fld mask-len mask-bitrange))
-		; Find the fields that have constant values.
-		(find ifld-constant? (ifields-base-ifields fld-list)))))
+;; (define (compute-insn-base-mask fld-list)
+;;   (let* ((mask-len (compute-insn-base-mask-length fld-list))
+;; 	 (lsb0? (ifld-lsb0? (car fld-list)))
+;; 	 (mask-bitrange (make <bitrange>
+;; 			      0 ; word-offset
+;; 			      (if lsb0? (- mask-len 1) 0) ; start
+;; 			      mask-len ; length
+;; 			      mask-len ; word-length
+;; 			      lsb0?)))
+;;     (apply +
+;; 	   (map (lambda (fld) (ifld-mask fld mask-len mask-bitrange))
+;; 		; Find the fields that have constant values.
+;; 		(find ifld-constant? (ifields-base-ifields fld-list)))))
+;; )
+
+; Given sorted FLD-LIST, compute the list of words.
+; The result is a sorted list of (word-start . word-length) pairs.
+
+(define (compute-insn-words fld-list)
+  ; Collect the list of "words" the ifields are in, and the remove duplicates.
+  ; NOTE: "word" here is a misnomer but I can't think of a better name.
+  (remove-duplicates (map (lambda (f)
+			   (-ifmt-ifield-word f))
+			 ; Have to resort the list in case of multi-ifields.
+			 (sort-ifield-list
+			  (collect ifld-real-ifields fld-list))))
+)
+
+; Given sorted FLD-LIST, compute the opcode mask lengths.
+; If the instruction is base-insn-bitsize in length, there is just one mask.
+; Otherwise there are several.
+; Masks can be of different sizes.
+; Example: an insn with a 16 bit opcode and a 32 bit immediate value has
+; masks (16 32).
+
+(define (compute-insn-mask-lengths fld-list)
+  (let ((words (compute-insn-words fld-list)))
+    ; We now have a sorted list of (word-start . word-length) pairs.
+    ; We just want the word lengths.
+    (map cdr words))
+)
+
+; Given sorted FLD-LIST, compute the opcode masks.
+; There is one element for each element of
+; (compute-insn-mask-lengths fld-list).
+
+(define (compute-insn-masks fld-list)
+  ; Break out multi-ifields.
+  ;; For building the mask we're only interested in constant ifields, 
+  ;; then we want the real component ifields, so break apart any
+  ;; multi-ifields into their parts.
+  (set! fld-list (sort-ifield-list 
+		  (collect ifld-real-ifields 
+			   (find ifld-constant? fld-list))))
+
+  ; First sort the fields into bins of each "word".
+  (let* ((words (compute-insn-words fld-list))
+	(bins (map (lambda (word) (cons word '())) words)))
+    (for-each (lambda (f)
+	       ; ??? Arguably not very efficient.  Optimize later.
+	       (let ((fword (-ifmt-ifield-word f)))
+		 (assoc-set! bins fword (cons f (assoc-ref bins fword)))))
+	     fld-list)
+
+    ; Now compute the masks for each word.
+    (map (lambda (bin)
+	   (apply + (map (lambda (f)
+			   (ifld-mask f #f #f))
+			 (cdr bin))))
+	 bins))
 )
 
 ; Return the <iformat> search key for a sorted field list.
@@ -150,24 +216,59 @@
 	      sorted-ifld-list)
 )
 
+; Validate an <ifmt-desc> object.
+; Check for
+; - missing/overlapping bits (TODO)
+; - insn smaller than base-insn-size
+
+(define (-ifmt-desc-validate desc)
+  *UNSPECIFIED*
+)
+
 ; Create an <iformat> object for INSN.
 ; INDEX is the ordinal to assign to the result or -1 if unknown.
 ; SEARCH-KEY is the search key used to determine the iformat's uniqueness.
 ; IFLDS is a sorted list of INSN's ifields.
 
 (define (ifmt-build insn index search-key iflds)
-  (make <iformat>
-    (symbol-append 'ifmt- (obj:name insn))
-    (string-append "e.g. " (insn-syntax insn))
-    atlist-empty
-    index
-    search-key
-    iflds
-    (compute-insn-base-mask-length iflds)
-    (compute-insn-length iflds)
-    (compute-insn-base-mask iflds)
-    insn)
-)
+  (let ((length (compute-insn-length iflds)))
+
+    ; Do various checks
+    ; TODO: check for missing/overlapping bits
+    (if (< length (state-base-insn-bitsize))
+       (message "WARNING: insn smaller than base-insn-bitsize: "
+		(obj:name insn)
+		"\n"))
+
+    (make <iformat>
+      (symbol-append 'ifmt- (obj:name insn))
+      (string-append "e.g. " (insn-syntax insn))
+      atlist-empty
+      index
+      search-key
+      iflds
+      length
+      (compute-insn-mask-lengths iflds)
+      (compute-insn-masks iflds)
+      insn))
+  ;; (make <iformat>
+  ;;   (symbol-append 'ifmt- (obj:name insn))
+  ;;   (string-append "e.g. " (insn-syntax insn))
+  ;;   atlist-empty
+  ;;   index
+  ;;   search-key
+  ;;   iflds
+  ;;   (compute-insn-base-mask-length iflds)
+  ;;   (compute-insn-length iflds)
+  ;;   (compute-insn-base-mask iflds)
+  ;;   insn)
+  )
+
+; For the <iformat> fmt examine the ifields to see if
+; any are outside of the base instruction.
+(define (ifmt-opcodes-beyond-base? fmt)
+  #f)
+
 
 ; Sformats.
 
@@ -323,19 +424,28 @@
 ; Sort IFLDS by dependencies and then by starting bit number.
 
 (define (/sfmt-order-iflds iflds)
-  (let ((up? 
-	 ; ??? Something like this is preferable.
-	 ;(not (ifld-lsb0? (car ifld-list)))
-	 (not (current-arch-insn-lsb0?))))
-    (let loop ((independent nil) (dependent nil) (iflds iflds))
-      (cond ((null? iflds)
-	     (append (sort-ifield-list independent up?)
-		     (sort-ifield-list dependent up?)))
-	    ; FIXME: quick hack.
-	    ((multi-ifield? (car iflds))
-	     (loop independent (cons (car iflds) dependent) (cdr iflds)))
-	    (else
-	     (loop (cons (car iflds) independent) dependent (cdr iflds))))))
+  (let loop ((independent nil) (dependent nil) (iflds iflds))
+    (cond ((null? iflds)
+	   (append (sort-ifield-list independent)
+		   (sort-ifield-list dependent)))
+          ;; FIXME: quick hack.
+	  ((multi-ifield? (car iflds))
+	   (loop independent (cons (car iflds) dependent) (cdr iflds)))
+	  (else
+	   (loop (cons (car iflds) independent) dependent (cdr iflds)))))
+  ;; (let ((up?
+  ;;        ; ??? Something like this is preferable.
+  ;;        ;(not (ifld-lsb0? (car ifld-list)))
+  ;;        (not (current-arch-insn-lsb0?))))
+  ;;   (let loop ((independent nil) (dependent nil) (iflds iflds))
+  ;;     (cond ((null? iflds)
+  ;;            (append (sort-ifield-list independent up?)
+  ;;       	     (sort-ifield-list dependent up?)))
+  ;;           ; FIXME: quick hack.
+  ;;           ((multi-ifield? (car iflds))
+  ;;            (loop independent (cons (car iflds) dependent) (cdr iflds)))
+  ;;           (else
+  ;;            (loop (cons (car iflds) independent) dependent (cdr iflds))))))
 )
 
 ; Return a sorted list of ifields used by IN-OPS, OUT-OPS.
@@ -404,14 +514,7 @@
 
 (define (ifmt-analyze insn compute-sformat?)
   ; First sort by starting bit number the list of fields in INSN.
-  (let ((sorted-ifields
-	 (sort-ifield-list (insn-iflds insn)
-			   ; ??? Something like this is preferable, but
-			   ; if the first insn is a virtual insn there are
-			   ; no fields.
-			   ;(not (ifld-lsb0? (car (insn-iflds insn))))
-			   (not (current-arch-insn-lsb0?))
-			   )))
+  (let ((sorted-ifields (insn-sorted-iflds insn)))
 
     (if (null? sorted-ifields)
 
@@ -575,9 +678,9 @@
 			  -1 ; number
 			  #f ; key
 			  nil ; fields
-			  0 ; mask-length
 			  0 ; length
-			  0 ; mask
+                          '(0) ; mask-lengths
+                          '(0) ; masks
 			  #f)) ; eg-insn
 	 (empty-sfmt (make <sformat>
 			  'sfmt-empty

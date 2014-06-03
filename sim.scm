@@ -53,6 +53,10 @@
 (define /with-scache? #f)
 (define (with-scache?) /with-scache?)
 
+; #t if we're collecting register usage data.
+(define /with-reg-usage? #t)
+(define (with-reg-usage?) /with-reg-usage?)
+
 ; #t if we're generating profiling code
 ; Each of the function and switch semantic code can have profiling.
 ; The options as passed are stored in /with-profile-{fn,sw}?, and
@@ -1783,7 +1787,7 @@
    "\
 /* Instruction argument buffer.  */
 
-union sem_fields {\n"
+union @prefix@_sem_fields {\n"
    (string-list-map /gen-argbuf-elm (current-sbuf-list))
    "\
 #if WITH_SCACHE_PBB
@@ -1835,6 +1839,8 @@ struct argbuf {
   const IDESC *idesc;
   char trace_p;
   char profile_p;
+"
+  "\
   /* ??? Temporary hack for skip insns.  */
   char skip_count;
   char unused;
@@ -1844,7 +1850,7 @@ struct argbuf {
 	    "\
   union sem semantic;
   int written;
-  union sem_fields fields;\n"
+  union @prefix@_sem_fields fields;\n"
 	    "\
   CGEN_INSN_WORD insn;
   int written;\n")

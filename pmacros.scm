@@ -701,7 +701,12 @@
 			(else
 			 (/pmacro-error "invalid argument to %str" elm))))
 		args)))
-)
+  )
+
+;; (%string-index string char) - string-index.
+
+(define (/pmacro-builtin-string-index str . ch)
+  (string-index str #\~))
 
 ;; (%hex number [width]) - convert number to hex string
 ;; WIDTH, if present, is the number of characters in the result, beginning
@@ -786,7 +791,7 @@
 	       (if (= (length (car arg-list)) 2)
 		   (if (list? (cadar arg-list))
 		       (loop (cdr arg-list) (append result (cadar arg-list)))
-		       (/pmacro-error (string-append "argument to " unsplice-str " must be a list")
+		       (/pmacro-error (string-append "argument to " unsplice-str " must be a list: " (ptype (cadar arg-list)))
 				      (car arg-list)))
 		   (/pmacro-error (string-append "wrong number of arguments to " unsplice-str)
 				  (car arg-list))))
@@ -850,6 +855,7 @@
   ;; form:  We *want* to be passed an evaluated expression, and then we
   ;; re-evaluate it.  But syntactic forms pass parameters unevaluated, so we
   ;; have to do the first one ourselves.
+  (logit 4 "In .eval macro handling\n")
   (/pmacro-expand (/pmacro-expand expr env loc) env loc)
 )
 
@@ -1331,6 +1337,22 @@
       (/pmacro-error "invalid arg for %cddr" l))
 )
 
+;; (%caddr expr)
+
+(define (/pmacro-builtin-caddr l)
+  (if (and (pair? l) (pair? (cdr l)) (pair? (cdr (cdr l))))
+      (caddr l)
+      (/pmacro-error "invalid arg for %caddr" l))
+)
+
+;; (%cdddr expr)
+
+(define (/pmacro-builtin-cdddr l)
+  (if (and (pair? l) (pair? (cdr l)) (pair? (cdr (cdr l))))
+      (cdddr l)
+      (/pmacro-error "invalid arg for %cdddr" l))
+)
+
 ;; (%internal-test expr)
 ;; This is an internal builtin for use by the testsuite.
 ;; EXPR is a Scheme expression that is executed to verify proper
@@ -1357,6 +1379,7 @@
 	 (list
 	  (list 'sym 'symbols #f /pmacro-builtin-sym "symbol-append")
 	  (list 'str 'strings #f /pmacro-builtin-str "string-append")
+	  (list 'string-index '(string char) #f /pmacro-builtin-string-index "string-index")
 	  (list 'hex '(number . width) #f /pmacro-builtin-hex "convert to -hex, with optional width")
 	  (list 'upcase '(string) #f /pmacro-builtin-upcase "string-upcase")
 	  (list 'downcase '(string) #f /pmacro-builtin-downcase "string-downcase")
@@ -1412,6 +1435,8 @@
 	  (list 'cadr '(x) #f /pmacro-builtin-cadr "return (cadr x)")
 	  (list 'cdar '(x) #f /pmacro-builtin-cdar "return (cdar x)")
 	  (list 'cddr '(x) #f /pmacro-builtin-cddr "return (cddr x)")
+          (list 'caddr '(x) #f /pmacro-builtin-caddr "return (caddr x)")
+	  (list 'cdddr '(x) #f /pmacro-builtin-cdddr "return (cdddr x)")
 	  (list 'internal-test '(expr) #f /pmacro-builtin-internal-test "testsuite use only")
 	  ))
 	(prefix (if (member rtl-version '((0 7) (0 8)))
@@ -1424,6 +1449,7 @@
 		      (syntactic? (list-ref x 2))
 		      (pmacro (list-ref x 3))
 		      (comment (list-ref x 4)))
+                  (logit 4 "Creating macro " prefix name "\n")
 		  (let ((full-name (string->symbol (string-append prefix (symbol->string name)))))
 		    (/pmacro-set! full-name
 				  (/pmacro-make full-name arg-spec #f syntactic? pmacro comment))

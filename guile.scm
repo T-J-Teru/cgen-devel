@@ -150,3 +150,8 @@
 		;; in handler if we don't do a start-stack here.
 		(start-stack proc (apply proc args)))
 	      handler))
+
+;; The procedure feature? is deprecated in later versions of guile, and we
+;; should be using provided? instread.  For now, just redefine feature? to
+;; call provided? for us.
+(define feature? provided?)

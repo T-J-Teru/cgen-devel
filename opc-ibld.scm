@@ -210,7 +210,7 @@ const char *
   (logit 2 "Generating extract switch ...\n")
   (string-list
    "\
-int @arch@_cgen_extract_operand
+const char* @arch@_cgen_extract_operand
   (CGEN_CPU_DESC, int, CGEN_EXTRACT_INFO *, CGEN_INSN_INT, CGEN_FIELDS *, bfd_vma);
 
 /* Main entry point for operand extraction.
@@ -228,7 +228,7 @@ int @arch@_cgen_extract_operand
    separate makes clear the interface between `print_insn_normal' and each of
    the handlers.  */
 
-int
+const char*
 @arch@_cgen_extract_operand (CGEN_CPU_DESC cd,
 			     int opindex,
 			     CGEN_EXTRACT_INFO *ex_info,
@@ -237,6 +237,7 @@ int
 			     bfd_vma pc)
 {
   /* Assume success (for those operands that are nops).  */
+  const char * errmsg = NULL;
   int length = 1;
   unsigned int total_length = CGEN_FIELDS_BITSIZE (fields);
 
@@ -252,7 +253,10 @@ int
       abort ();
     }
 
-  return length;
+  if (length <= 0 && errmsg == NULL)
+    errmsg = \"unknown error during operand extraction\";
+
+  return errmsg;
 }\n\n")
 )
 

@@ -584,7 +584,16 @@ SEM_FN_NAME (@prefix@,init_idesc_table) (SIM_CPU *current_cpu)
 	(insn-len (insn-length-bytes insn)))
     (string-list
      "/* " (obj:str-name insn) ": " (insn-syntax insn) " */\n\n"
-     "static SEM_PC\n"
+     ;; Make invalid semantic functions public, so we can test the decoded
+     ;; semantic to see whether the instruction decoded as invalid without
+     ;; actually executing it.
+     ;;
+     ;; APB: This is a grotty hack, there must be a better way to solve the
+     ;; problem that this is trying to solve, the obvious way would be for
+     ;; the decoder to set a flag to indicate that it decoded an invalid
+     ;; instruction.
+     (if (equal? (obj:str-name insn) "x-invalid") "" "static ")     
+     "SEM_PC\n"
      "SEM_FN_NAME (@prefix@," (gen-sym insn) ")"
      (if (and parallel? (not (with-generic-write?)))
 	 " (SIM_CPU *current_cpu, SEM_ARG sem_arg, PAREXEC *par_exec)\n"

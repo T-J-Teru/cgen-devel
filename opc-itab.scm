@@ -118,68 +118,105 @@
 ; STRIP-MNEM-OPERANDS? is #t if any mnemonic operands are to be stripped off.
 ; SYNTAX is a string of text and operands.
 ; OP-MACRO is the macro to call that computes an operand's value.
+; ISA-NAME-LIST is the list of ISA names in which the owning insn lives.
+; MNEMONIC-MACRO is the macro to use to mark the mnemonic.
 ; The resulting syntax is expressed as a sequence of bytes.
 ; Values < 128 are characters that must be matched.
 ; Values >= 128 are 128 + the index into the operand table.
 
 (define (compute-syntax strip-mnemonic? strip-mnem-operands? syntax op-macro
-			isa-name-list)
-  (let ((context (make-prefix-context "syntax computation"))
-	(syntax (if strip-mnemonic?
-		    (strip-mnemonic strip-mnem-operands? syntax)
-		    syntax)))
+			isa-name-list mnemonic-macro)                           
+  (let loop ((syn (analyse-sytax-string strip-mnem-operands? syntax))
+             (result ""))
+    (cond
+     ;; Consumed all of the syntax string components.
+     ((= (length syn) 0) (string-append result "0"))
+     
+     ;; Handle the mnemonic
+     ((eq? (caar syn) 'mnemonic)
+      (if strip-mnemonic?
+	  (loop (cdr syn) (string-append result mnemonic-macro ", "))
+	  (loop (append `((text . ,(cdar syn))) syn) result)))
 
-    (let loop ((syn syntax) (result ""))
+     ;; Handle operands
+     ((eq? (caar syn) 'operand)
+      (let ((operand (string->symbol (cdar syn))))
+        (if (not (current-op-lookup operand isa-name-list))
+            (parse-error context "undefined operand " operand syntax)))
+      (loop (cdr syn) (string-append result op-macro " (" 
+				     (string-upcase (gen-c-symbol (cdar syn)))
+				     "), ")))
 
-      (cond ((= (string-length syn) 0)
-	     (string-append result "0"))
+     ;; Handle raw text
+     ((eq? (caar syn) 'text)
+      (loop (cdr syn) (string-append result (string->c-bytes (cdar syn)))))
 
-	    ((char=? #\\ (string-ref syn 0))
-	     (if (= (string-length syn) 1)
-		 (parse-error context "missing char after '\\'" syntax))
-	     (let ((escaped-char (string-ref syn 1))
-		   (remainder (string-drop 2 syn)))
-	       (if (char=? #\\ escaped-char)
-		   (loop remainder (string-append result "'\\\\', "))
-		   (loop remainder (string-append result "'" (string escaped-char) "', ")))))
+     ;; Everything else is an error.
+     (else
+      (parse-error "compute-syntax" 
+		   "unexpected syntax element in analysis of"
+		   syntax))
+     )
+    )
+  )
 
-	    ((char=? #\$ (string-ref syn 0))
-	     ; Extract the symbol from the string, which will be the name of
-	     ; an operand.  Append it to the result.
-	     (if (= (string-length syn) 1)
-		 (parse-error context "missing operand name" syntax))
-	     ; Is it $foo or ${foo}?
-	     (if (char=? (string-ref syn 1) #\{)
-		 (let ((n (chars-until-delimiter syn #\})))
-		   ; Note that 'n' includes the leading ${.
-		   ; FIXME: \} not implemented yet.
-		   (case n
-		     ((0) (parse-error context "empty operand name" syntax))
-		     ((#f) (parse-error context "missing '}'" syntax))
-		     (else (loop (string-drop (+ n 1) syn)
-				 (string-append result op-macro " ("
-						(string-upcase
-						 (gen-c-symbol
-						  (substring syn 2 n)))
-						"), ")))))
-		 (let ((n (id-len (string-drop1 syn))))
-		   (if (= n 0)
-		       (parse-error context "empty or invalid operand name" syntax))
-		   (let ((operand (string->symbol (substring syn 1 (1+ n)))))
-		     (if (not (current-op-lookup operand isa-name-list))
-			 (parse-error context "undefined operand " operand syntax)))
-		   (loop (string-drop (1+ n) syn)
-			 (string-append result op-macro " ("
-					(string-upcase
-					 (gen-c-symbol
-					  (substring syn 1 (1+ n))))
-					"), ")))))
+  
+;;   (let ((context (make-prefix-context "syntax computation"))
+;; 	(syntax (if strip-mnemonic?
+;; 		    (strip-mnemonic strip-mnem-operands? syntax)
+;; 		    syntax)))
 
-	    ; Append the character to the result.
-	    (else (loop (string-drop1 syn)
-			(string-append result
-				       "'" (string-take1 syn) "', "))))))
-)
+;;     (let loop ((syn syntax) (result ""))
+
+;;       (cond ((= (string-length syn) 0)
+;; 	     (string-append result "0"))
+
+;; 	    ((char=? #\\ (string-ref syn 0))
+;; 	     (if (= (string-length syn) 1)
+;; 		 (parse-error context "missing char after '\\'" syntax))
+;; 	     (let ((escaped-char (string-ref syn 1))
+;; 		   (remainder (string-drop 2 syn)))
+;; 	       (if (char=? #\\ escaped-char)
+;; 		   (loop remainder (string-append result "'\\\\', "))
+;; 		   (loop remainder (string-append result "'" (string escaped-char) "', ")))))
+
+;; 	    ((char=? #\$ (string-ref syn 0))
+;; 	     ; Extract the symbol from the string, which will be the name of
+;; 	     ; an operand.  Append it to the result.
+;; 	     (if (= (string-length syn) 1)
+;; 		 (parse-error context "missing operand name" syntax))
+;; 	     ; Is it $foo or ${foo}?
+;; 	     (if (char=? (string-ref syn 1) #\{)
+;; 		 (let ((n (chars-until-delimiter syn #\})))
+;; 		   ; Note that 'n' includes the leading ${.
+;; 		   ; FIXME: \} not implemented yet.
+;; 		   (case n
+;; 		     ((0) (parse-error context "empty operand name" syntax))
+;; 		     ((#f) (parse-error context "missing '}'" syntax))
+;; 		     (else (loop (string-drop (+ n 1) syn)
+;; 				 (string-append result op-macro " ("
+;; 						(string-upcase
+;; 						 (gen-c-symbol
+;; 						  (substring syn 2 n)))
+;; 						"), ")))))
+;; 		 (let ((n (id-len (string-drop1 syn))))
+;; 		   (if (= n 0)
+;; 		       (parse-error context "empty or invalid operand name" syntax))
+;; 		   (let ((operand (string->symbol (substring syn 1 (1+ n)))))
+;; 		     (if (not (current-op-lookup operand isa-name-list))
+;; 			 (parse-error context "undefined operand " operand syntax)))
+;; 		   (loop (string-drop (1+ n) syn)
+;; 			 (string-append result op-macro " ("
+;; 					(string-upcase
+;; 					 (gen-c-symbol
+;; 					  (substring syn 1 (1+ n))))
+;; 					"), ")))))
+
+;; 	    ; Append the character to the result.
+;; 	    (else (loop (string-drop1 syn)
+;; 			(string-append result
+;; 				       "'" (string-take1 syn) "', "))))))
+;; )
 
 ; Return C code to define the syntax string for SYNTAX
 ; MNEM is the C value to use to represent the instruction's mnemonic.
@@ -187,18 +224,16 @@
 ; ISA-NAME-LIST is the list of ISA names in which the owning insn lives.
 
 (define (gen-syntax-entry mnem op syntax isa-name-list)
+  (logit 4 "Entering gen-syntax-entry\n")
   (string-append
    "{ { "
-   mnem ", "
-   ; `mnem' is used to represent the mnemonic, so we always want to strip it
-   ; from the syntax string, regardless of the setting of `strip-mnemonic?'.
-   (compute-syntax #t #f syntax op isa-name-list)
+   (compute-syntax #t #t syntax op isa-name-list mnem)
    " } }")
 )
 
 ; Instruction format table support.
 
-; Return the table for IFMT, an <iformat> object.
+; Return the CGEN_IFMT table for <iformat> IFMT.
 
 (define (/gen-ifmt-table-1 ifmt)
   (gen-obj-sanitize
@@ -206,10 +241,19 @@
    (string-list
     "static const CGEN_IFMT " (gen-sym ifmt) " ATTRIBUTE_UNUSED = {\n"
     "  "
-    (number->string (ifmt-mask-length ifmt)) ", "
     (number->string (ifmt-length ifmt)) ", "
-    "0x" (number->string (ifmt-mask ifmt) 16) ", "
+    (number->string (length (ifmt-mask-lengths ifmt))) ", "
     "{ "
+    (string-drop 2
+                 (string-map (lambda (ml)
+                               (string-append ", " (number->string ml)))
+                             (ifmt-mask-lengths ifmt)))
+    " }, { "
+    (string-drop 2
+                 (string-map (lambda (m)
+                               (string-append ", 0x" (number->string m 16)))
+                             (ifmt-masks ifmt)))
+    " }, { "
     (string-list-map (lambda (ifld)
 		       (string-list "{ F (" (ifld-enum ifld #f) ") }, "))
 		     (ifmt-ifields ifmt))
@@ -276,6 +320,14 @@
    )
 )
 
+;; Return C code for a pointer to the ifield assertion function, or NULL
+;; if there is no ifield assertion for this instruction.
+
+(define (gen-insn-ifld-assert-func-ptr insn)
+  (if (insn-ifield-assertion insn)
+      (insn-ifld-assert-func-name insn)
+      "NULL"))
+
 ; Handler table support.
 ; There are tables for each of parse/insert/extract/print.
 
@@ -316,20 +368,23 @@
 ; Return a reference to the format table entry of INSN.
 
 (define (gen-ifmt-entry insn)
+  (logit 4 "Entering gen-ifmt-entry for " (obj:name insn) "\n")
   (string-append "& " (gen-sym (insn-ifmt insn)))
 )
 
 ; Return the definition of an instruction value entry.
 
 (define (gen-ivalue-entry insn)
-  (string-list "{ "
-	       "0x" (number->string (insn-value insn) 16)
-	       (if #f ; (ifmt-opcodes-beyond-base? (insn-ifmt insn))
-		   (string-list ", { "
-				; ??? wip: opcode values beyond the base insn
-				"0 }")
-		   "")
-	       " }")
+  (logit 4 "Entering gen-ivalue-entry for " (obj:name insn) "\n")
+  (string-list
+   "{ { "
+   ;; Every iteration of the loop adds ", <content>", we want to
+   ;; remove the leading ", ", hence the "string-drop 2" here.
+   (string-drop 2
+		(string-map (lambda (v)
+			      (string-append ", 0x" (number->string v 16)))
+			    (insn-word-values insn)))
+   " } }")
 )
 
 ; Generate an insn opcode entry for INSN.
@@ -337,21 +392,60 @@
 ; NUM-NON-BOOLS is the number of non-boolean insn attributes.
 
 (define (/gen-insn-opcode-entry insn all-attrs num-non-bools)
+  (logit 4 "Entering /gen-insn-opcode-entry for " (obj:name insn) "\n")
   (gen-obj-sanitize
    insn
    (string-list
     "/* " (insn-syntax insn) " */\n"
     "  {\n"
     "    " (gen-insn-handlers insn) ",\n"
+    "    " (gen-insn-ifld-assert-func-ptr insn) ",\n"
     "    "
     (gen-syntax-entry "MNEM" "OP" (insn-syntax insn) (obj-isa-list insn))
     ",\n"
     ; ??? 'twould save space to put a pointer here and record format separately
-    "    " (gen-ifmt-entry insn) ", "
-    ;"0x" (number->string (insn-value insn) 16) ",\n"
-    (gen-ivalue-entry insn) "\n"
+    "    " (gen-ifmt-entry insn) ",\n"
+    "    " (gen-ivalue-entry insn) "\n"
     "  },\n"))
 )
+
+; Generate the functions used for the ifield assertions.
+
+(define (/gen-insn-ifld-assert insn)
+  (logit 2 "Generating assertion for: " (insn-syntax insn) "\n")
+  (logit 2 "Assertion: " (insn-ifield-assertion insn) "\n")
+  (let ((assert-c (rtl-c DFLT (insn-ifield-assertion insn) nil)))
+    (logit 2 "c-code: " assert-c "\n")
+    (string-list
+     "/* The ifield-assertion for: */\n"
+     "/* " (insn-syntax insn) " */\n"
+     "static int\n"
+     (insn-ifld-assert-func-name insn) " (CGEN_CPU_DESC cd ATTRIBUTE_UNUSED, 
+       const CGEN_INSN *insn ATTRIBUTE_UNUSED,
+       CGEN_FIELDS *fields ATTRIBUTE_UNUSED)\n"
+     "{\n"
+     "#define FLD(f) fields->f\n"
+     "	return " assert-c ";\n"
+     "#undef FLD\n"
+     "}\n"
+     )))
+
+(define (/gen-ifld-asserts)
+  (logit 2 "Generating ifield assertion functions ...\n")
+  (string-write
+   "\
+
+/* Instruction ifield-assertion functions.  */
+
+"
+  (lambda ()
+    (string-write-map /gen-insn-ifld-assert 
+      (find-insns-with-ifield-assertions (current-insn-list))))
+
+  "\
+
+
+"))
 
 ; Generate insn table.
 
@@ -373,7 +467,7 @@ static const CGEN_OPCODE @arch@_cgen_insn_opcode_table[MAX_INSNS] =
   /* Special null first entry.
      A `num' value of zero is thus invalid.
      Also, the special `invalid' insn resides here.  */
-  { { 0, 0, 0, 0 }, {{0}}, 0, {0}},\n"
+  { { 0, 0, 0, 0 }, NULL, {{0}}, NULL, {{0}} },\n"
 
      (lambda ()
        (string-write-map (lambda (insn)
@@ -398,6 +492,7 @@ static const CGEN_OPCODE @arch@_cgen_insn_opcode_table[MAX_INSNS] =
 ; Return assembly/disassembly hashing support.
 
 (define (/gen-hash-fns)
+  (logit 2 "Generating assembler and disassembler hash functions\n")
   (string-list
    "\
 #ifndef CGEN_ASM_HASH_P
@@ -515,7 +610,7 @@ static unsigned int dis_hash_insn (const char *, CGEN_INSN_INT);
     ",\n"
     "    (PTR) & macro_" (gen-sym minsn) "_expansions[0],\n"
     "    "
-    (gen-obj-attr-defn 'minsn minsn all-attrs num-non-bools gen-insn-attr-mask)
+    (gen-obj-attr-defn 'minsn minsn all-attrs num-non-bools gen-A-attr-mask)
     "\n"
     "  },\n"))
 )
@@ -524,6 +619,7 @@ static unsigned int dis_hash_insn (const char *, CGEN_INSN_INT);
 ; ??? wip, not currently used.
 
 (define (/gen-minsn-opcode-entry minsn all-attrs num-non-bools)
+  (logit 4 "  Entering /gen-minsn-opcode-entry for " (obj:name minsn) "\n")
   (gen-obj-sanitize
    minsn
    (string-list
@@ -538,7 +634,7 @@ static unsigned int dis_hash_insn (const char *, CGEN_INSN_INT);
     ",\n"
     "    (PTR) & macro_" (gen-sym minsn) "_expansions[0],\n"
     "    "
-    (gen-obj-attr-defn 'minsn minsn all-attrs num-non-bools gen-insn-attr-mask)
+    (gen-obj-attr-defn 'minsn minsn all-attrs num-non-bools gen-A-attr-mask)
     "\n"
     "  },\n"))
 )
@@ -611,7 +707,7 @@ static const CGEN_OPCODE @arch@_cgen_macro_insn_opcode_table[] =
 {\n"
      (lambda ()
        (string-write-map (lambda (minsn)
-			   (logit 3 "Generating macro-insn table entry for " (obj:name minsn) " ...\n")
+			   (logit 3 "Generating macro-insn opcode table entry for " (obj:name minsn) " ...\n")
 			   ; Simple macro-insns are emitted as aliases of real insns.
 			   (if (has-attr? minsn 'ALIAS)
 			       (/gen-insn-opcode-entry minsn all-attrs num-non-bools)
@@ -631,6 +727,7 @@ static const CGEN_OPCODE @arch@_cgen_macro_insn_opcode_table[] =
 ; Emit a function to call to initialize the opcode table.
 
 (define (/gen-opcode-init-fn)
+  (logit 2 "Generating opcode initialisation function\n")
   (string-write
    "\
 /* Set the recorded length of the insn in the CGEN_FIELDS struct.  */
@@ -662,7 +759,6 @@ void
     {
       insns[i].base = &ib[i];
       insns[i].opcode = &oc[i];
-      @arch@_cgen_build_insn_regex (& insns[i]);
     }
   cd->macro_insn_table.init_entries = insns;
   cd->macro_insn_table.entry_size = sizeof (CGEN_IBASE);
@@ -673,7 +769,6 @@ void
   for (i = 0; i < MAX_INSNS; ++i)
     {
       insns[i].opcode = &oc[i];
-      @arch@_cgen_build_insn_regex (& insns[i]);
     }
 
   cd->sizeof_fields = sizeof (CGEN_FIELDS);
@@ -736,6 +831,7 @@ void
    (lambda () (gen-extra-opc.c (opc-file-path) (current-arch-name)))
    /gen-hash-decls
    /gen-ifmt-table
+   /gen-ifld-asserts
    /gen-insn-opcode-table
    /gen-macro-insn-table
    /gen-hash-fns

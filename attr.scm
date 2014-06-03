@@ -304,7 +304,7 @@
        (for-each (lambda (val)
 		   ;; A list entry is for providing a sanitization key.
 		   (if (or (not (list? val))
-			   (not (number? (car val))))
+			   (not (integer? (car val))))
 		       (parse-error context
 				    "invalid element in integer attribute list"
 				    val)))
@@ -367,7 +367,7 @@
 	     (parse-error context "invalid default" default))
 	 (elm-xset! result 'default default)))
       ((<integer-attribute>)
-       (let ((default (if default default (if (null? values) 0 (car values)))))
+       (let ((default (if default default (if (list? values) (car values) 0))))
 	 (if (and (not (integer? default))
 		  (not (/attr-val-is-rtx? default)))
 	     (parse-error context "invalid default" default))
@@ -383,14 +383,15 @@
        (assert default)
        ;; It's also /attr-read's job to ensure it is a list.
        (assert (list? default))
-       (let ((default default))
+       (let ((default (if default default (caar parsed-values))))
+         ;; (let ((default default))
 	 ;; NOTE: We don't allow an rtx for bitset attributes,
 	 ;; the rtl language currently doesn't support them.
-	 (if (/attr-val-is-rtx? default)
-	     (parse-error context "invalid default, rtx not supported for bitset" default))
-	 (if (not (all-true? (map (lambda (v) (assq v parsed-values))
-				  default)))
-	     (parse-error context "invalid default" default))
+	 ;;(if (/attr-val-is-rtx? default)
+	 ;;    (parse-error context "invalid default, rtx not supported for bitset" default))
+	 ;;(if (not (all-true? (map (lambda (v) (assq v parsed-values))
+	 ;;			  default)))
+	 ;;    (parse-error context "invalid default" default))
 	 (elm-xset! result 'default default))))
 
     (elm-xset! result 'values parsed-values)
@@ -901,23 +902,30 @@
   (logit 4 (list 'attr-parse context attrs) "\n")
   (if (not (list? attrs))
       (parse-error context "improper attribute list" attrs))
+  (logit 5 "In attr-parse:\n")
   (let ((alist nil))
     (for-each (lambda (elm)
+                (logit 5 "  processing: " elm "\n")
 		(cond ((symbol? elm)
-		       ; boolean attribute
-		       (if (char=? (string-ref (symbol->string elm) 0) #\!)
-			   (set! alist (acons (string->symbol (string-drop1 (symbol->string elm))) #f alist))
-			   (set! alist (acons elm #t alist)))
-		       (if (not (current-attr-lookup (caar alist)))
-			   (parse-error context "unknown attribute" (caar alist))))
+                       ;; boolean attribute
+                       (let* ((not-flag (char=? (string-ref (symbol->string elm) 0) #\!))
+                              (a-name (if not-flag
+                                          (string->symbol (string-drop1 (symbol->string elm)))
+                                          elm)))
+                         (set! alist (assq-set! alist a-name (if not-flag #f #t)))
+                         (if (not (current-attr-lookup a-name))
+                             (parse-error context "unknown attribute" a-name))))
 		      ((and (list? elm) (pair? elm) (symbol? (car elm)))
 		       (let ((a (current-attr-lookup (car elm))))
 			 (if (not a)
 			     (parse-error context "unknown attribute" elm))
-			 (set! alist (cons (send a 'parse-value
-						 context (cdr elm))
-					   alist))))
-		      (else (parse-error context "improper attribute" elm))))
+                         (let* ((pv (send a 'parse-value context (cdr elm)))
+                                (a-name (car pv))
+                                (val (cdr pv)))
+                           (set! alist (assq-set! alist a-name val)))))
+                      ((and (list? elm) (eq? '() elm)))
+		      (else (parse-error context "improper attribute" elm)))
+                (logit 5 " alist: " alist "\n"))
 	      attrs)
     alist)
 )
@@ -1070,6 +1078,9 @@
 )
 (define (current-insn-attr-list)
   (current-attr-list-for 'insn)
+)
+(define (current-mach-attr-list)
+  (current-attr-list-for 'mach)
 )
 
 ; Methods to emit the C value of an attribute.

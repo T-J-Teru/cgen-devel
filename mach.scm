@@ -193,6 +193,13 @@
   *UNSPECIFIED*
 )
 
+;; Remove all entries from an ident-object-table.  This is
+;; a total hack for now.
+
+(define (/ident-object-table-clear! iot)
+  (arch-set-insn-table! arch (/make-ident-object-table 509))
+)
+
 ;; Look up KEY in an ident-object-table.
 
 (define (/ident-object-table-lookup iot key)
@@ -220,6 +227,9 @@
 		;; blah blah blah ... ooohhh, evil sanitize key, blah blah blah
 		machs
 
+                ;; String of default mach value to use.
+                default-machs
+
 		;; List of all isas (instruction set architecture).
 		;; Each element is a pair of (isa-name . sanitize-key)
 		;; where sanitize-key is #f if there is none.
@@ -233,7 +243,7 @@
 )
 
 (define-getters <arch-data> adata
-  (default-alignment insn-lsb0? machs isas)
+  (default-alignment insn-lsb0? machs default-machs isas)
 )
 
 ;; Add, list, lookup accessors for <arch>.
@@ -594,6 +604,35 @@
 	#f))
 )
 
+;; This is a total hack for now.  Blast away the hash table.  Would be
+;; better to perform the filtering in place, removing existing entries
+;; from the hash table as needed.
+
+(define (current-insn-clear! arch)
+  (arch-set-insn-table! arch (/make-ident-object-table 509))
+)
+
+; Take a predicate function and filter the current insn list.  The current
+; insn list is permanently modified by this call.  The predicate P should
+; take a single insn object and return #t to keep the insn in the list or
+; #f to reject the insn from the list.	The order of the list is maintained
+; by this call.
+
+(define (current-insn-filter! p)
+  (logit 2 "Filtering instruction list...\n")
+  (let ((insn-list (current-insn-list)))
+    (current-insn-clear! CURRENT-ARCH)
+    (map
+     (lambda (insn) (if (p insn)
+                        (begin
+                          (logit 4 "Keep " (obj:name insn) "\n")
+                          (current-insn-add! insn))
+                        (logit 4 "Discard " (obj:name insn) "\n")))
+     insn-list))
+  (logit 3 "Insn filtering all done\n")
+  *UNSPECIFIED*
+)
+
 ;; Return a boolean indicating if <insn> INSN is currently defined.
 ;; This is slightly complicated because multiple isas can have different
 ;; insns with the same name.
@@ -716,6 +755,18 @@
        machs)
 )
 
+;; Parse the default machs value
+;; The value should be a string ??
+;; The result is the same string ??
+
+(define (/arch-parse-default-machs context default-machs)
+  (logit 2 "Parsing default-machs list: " default-machs "\n")
+  (if (and default-machs
+           (list? default-machs))
+      default-machs
+      '(base))
+)
+
 ;; Parse an arch isa spec.
 ;; The value is a list of isa names or (isa-name sanitize-key) elements.
 ;; The result is a list of (isa-name . sanitize-key) elements.
@@ -742,7 +793,7 @@
 
 (define (/arch-parse context name comment attrs
 		     default-alignment insn-lsb0?
-		     machs isas)
+		     machs default-machs isas)
   (logit 2 "Processing arch " name " ...\n")
   (make <arch-data>
     (parse-name context name)
@@ -751,6 +802,7 @@
     (/arch-parse-alignment context default-alignment)
     (parse-boolean context insn-lsb0?)
     (/arch-parse-machs context machs)
+    (/arch-parse-default-machs context default-machs)
     (/arch-parse-isas context isas))
 )
 
@@ -769,6 +821,7 @@
 	  (default-alignment 'aligned)
 	  (insn-lsb0? #f)
 	  (machs #f)
+          (default-machs #f)
 	  (isas #f)
 	  )
       ;; Loop over each element in ARG-LIST, recording what's found.
@@ -784,6 +837,7 @@
       		((default-alignment) (set! default-alignment (cadr arg)))
       		((insn-lsb0?) (set! insn-lsb0? (cadr arg)))
       		((machs) (set! machs (cdr arg)))
+                ((default-machs) (set! default-machs (cdr arg)))
       		((isas) (set! isas (cdr arg)))
 		(else (parse-error context "invalid arch arg" arg)))
 	      (loop (cdr arg-list)))))
@@ -794,7 +848,7 @@
 	  (parse-error context "missing isas spec"))
       ;; Now that we've identified the elements, build the object.
       (/arch-parse context name comment attrs default-alignment insn-lsb0?
-		   machs isas)
+		   machs default-machs isas)
       )
     )
 )
@@ -805,7 +859,7 @@
   (lambda arg-list
     (let ((a (apply /arch-read arg-list)))
       (arch-set-data! CURRENT-ARCH a)
-      (def-mach-attr! (adata-machs a))
+      (def-mach-attr! (adata-machs a) (adata-default-machs a))
       (keep-mach-validate!)
       (def-isa-attr! (adata-isas a))
       (keep-isa-validate!)
@@ -820,7 +874,7 @@
 ;; Create the MACH attribute.
 ;; MACHS is the canonicalized machs spec to define-arch: (name . sanitize-key).
 
-(define (def-mach-attr! machs)
+(define (def-mach-attr! machs mdefault)
   (let ((mach-enums (append
 		     '((base))
 		     (map (lambda (mach)
@@ -831,9 +885,14 @@
 					    nil))))
 			  machs)
 		     '((max)))))
+    (logit 2 "Creating MACH attr, default is type " (ptype mdefault)
+           " and is " mdefault "\n")
+    (logit 2 "                    values are " (ptype mach-enums)
+           " and is " mach-enums "\n")
     (define-attr '(type bitset) '(name MACH)
       '(comment "machine type selection")
-      '(default base) (cons 'values mach-enums))
+      (cons 'default mdefault)
+      (cons 'values mach-enums))
     )
 
   *UNSPECIFIED*
@@ -1306,11 +1365,11 @@
     ;; Now that we've identified the elements, build the object.
     (/isa-parse context name comment attrs
 		base-insn-bitsize
-		(if default-insn-word-bitsize
-		    default-insn-word-bitsize
-		    base-insn-bitsize)
 		(if default-insn-bitsize
 		    default-insn-bitsize
+		    base-insn-bitsize)
+		(if default-insn-word-bitsize
+		    default-insn-word-bitsize
 		    base-insn-bitsize)
 		decode-assist liw-insns parallel-insns- condition
 		setup-semantics decode-splits))
@@ -1820,8 +1879,11 @@
 ;; Sanity check the instruction set.
 
 (define (/sanity-check-insns arch)
+  (logit 4 "In /sanity-check-insns - Entry\n")
+  
   (let ((insn-list (arch-insn-list arch)))
 
+    (logit 4 "In /sanity-check-insns - stage 1\n")
     ;; Ensure instruction base values agree with their masks.
     ;; Errors can come from bad .cpu files, bugs, or both.
     ;; It's better to catch such errors early.
@@ -1835,6 +1897,7 @@
        (let ((base-len (insn-base-mask-length insn))
 	     (base-mask (insn-base-mask insn))
 	     (base-value (insn-base-value insn)))
+         (logit 4 "In /sanity-check-insns - stage 2\n")
 	 (if (not (= (cg-logand (cg-logxor base-mask (mask base-len))
 				base-value)
 		     0))
@@ -1851,7 +1914,8 @@
 							  (ifld-pretty-print f)))
 					 (insn-iflds insn))
 			     )))
-
+         (logit 4 "In /sanity-check-insns - stage 3\n")
+         
 	 ;; Insert more checks here.
 
 	 ))

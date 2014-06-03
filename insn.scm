@@ -19,6 +19,11 @@
 		; The insn fields as specified in the .cpu file.
 		; Also contains values for constant fields.
 		iflds
+		(ifld-values . #f) ; Lazily computed cache
+
+                (word-values . #f) ; lazily computed cache
+                (sorted-iflds . #f) ; lazily computed cache
+                ;; TODO: Should reuse these, not new fields.
 		(/insn-value . #f) ; Lazily computed cache
 		(/insn-base-value . #f) ; Lazily computed cache
 
@@ -125,20 +130,112 @@
   (bits->bytes (insn-length insn))
 )
 
-; Return instruction mnemonic.
-; This is computed from the syntax string.
++
+; Length of the leading mnemonic part from SYNTAX.
+; (ie: everything up to but not including the first space or '$')
+; If STRIP-MNEM-OPERANDS?, strip operands out of the mnemonic. We
+; don't support mnemonics with embedded operands, so this must be true
+; right now.
+; This is a helper, only called when we have found the start of the
+; mnemonic, as the mnemonic might not be at the start of the syntax
+; string.
+
+(define (/mnemonic-length strip-mnem-operands? syntax)
+  (let ((space (string-index syntax #\space)))
+    (if (not strip-mnem-operands?)
+	(if space space (string-length syntax))
+	(let loop ((syn syntax) (length 0))
+	  (if (= (string-length syn) 0)
+	      length
+	      (case (string-ref syn 0)
+		((#\space) length)
+		((#\\) (loop (string-drop 2 syn) (+ length 2)))
+		((#\$) length)
+		(else (loop (string-drop1 syn) (+ length 1))))))))
+)
+
+; Return a list consisting of the syntax string broken down into
+; components. Each component is a pair, with the first member of the pair
+; being one of either 'mnemonic, 'operand, or 'text, and the second member
+; of the pair being a string.
+
+(define (analyse-sytax-string strip-mnem-operands? syntax)
+  (let ((context "syntax computation"))
+
+    (let loop ((syn syntax) (result '()) (seen-mnemonic? #f))
+
+      (cond
+       ;; Handle the end case, we've consumed the syntax string.
+       ((= (string-length syn) 0) result)
+
+       ;; Handle operands, creating a '(operand . <string>) node.
+       ((char=? #\$ (string-ref syn 0))
+	;; Extract the symbol from the string, which will be the name of an
+	;; operand.  Append it to the result.
+	(if (= (string-length syn) 1)
+	    (parse-error context "missing operand name" syntax))
+
+	;; Is it $foo or ${foo}?
+	(if (char=? (string-ref syn 1) #\{)
+	    (let ((n (chars-until-delimiter syn #\})))
+	      ;; Note that 'n' includes the leading ${.
+	      ;; FIXME: \} not implemented yet.
+	      (case n
+		;; Note, use 2 for empty as we are counting "${}"
+		((2) (parse-error context "empty operand name" syntax))
+		((#f) (parse-error context "missing '}'" syntax))
+		(else (loop (string-drop (+ n 1) syn)
+			    (append result
+				    `((operand . ,(substring syn 2 n))))
+			    seen-mnemonic?))))
+	    (let ((n (id-len (string-drop1 syn))))
+	      (if (= n 0)
+		  (parse-error context "empty or invalid operand name" syntax))
+	      (loop (string-drop (1+ n) syn)
+		    (append result `((operand . ,(substring syn 1 (1+ n)))))
+		    seen-mnemonic?))))
+
+       ;; Handle the mnemonic, creating a '(mnemonic . <string>) node.
+       ((not seen-mnemonic?)
+	(let* ((mn-len (/mnemonic-length strip-mnem-operands? syn))
+		 (mnemonic (substring syn 0 mn-len))
+		 (syn-rest (string-drop mn-len syn)))
+	  (loop syn-rest (append result `((mnemonic . ,mnemonic))) #t)))
+
+       ;; Handle other text, all text upto either the end of the string, or
+       ;; then next "$" character into a '(text . <string>) node.
+       (else
+	(let ((n (chars-until-delimiter syn #\$)))
+	  (case n
+	    ((0) (parse-error context "unexpected operand found" syntax))
+	    ((#f)
+	     (loop "" (append result `((text . ,syn))) seen-mnemonic?))
+	    (else
+	     (loop (string-drop n syn)
+		   (append result `((text . ,(substring syn 0 n))))
+		   seen-mnemonic?))))))))
+)
+
+; Return mnemonic from a syntax string.
 ; The mnemonic, as we define it, is everything up to, but not including, the
 ; first space or '$'.
-; FIXME: Rename to syntax-mnemonic, and take a syntax string argument.
 ; FIXME: Doesn't handle \$ to indicate a $ is actually in the mnemonic.
 
+(define (syntax-mnemonic syntax)
+  (let loop ((syn (analyse-sytax-string #t syntax)))
+    (if (= (length syn) 0)
+	""
+	(if (eq? (caar syn) 'mnemonic)
+	    (cdar syn)
+	    (loop (cdr syn))))))
+
+; Return instruction mnemonic.
+; This is a legacy function, should remove uses of this and switch
+; to using syntax-mnemonic, return the mnemonic as found by looking
+; at the syntax string for instruction INSN.
+
 (define (insn-mnemonic insn)
-  (letrec ((mnem-len (lambda (str len)
-		       (cond ((= (string-length str) 0) len)
-			     ((char=? #\space (string-ref str 0)) len)
-			     ((char=? #\$ (string-ref str 0)) len)
-			     (else (mnem-len (string-drop1 str) (+ len 1)))))))
-    (string-take (mnem-len (insn-syntax insn) 0) (insn-syntax insn)))
+  (syntax-mnemonic (insn-syntax insn))
 )
 
 ; Return enum cgen_insn_types value for INSN.
@@ -387,6 +484,14 @@
 (define (/insn-parse context name comment attrs syntax fmt ifield-assertion
 		     semantics timing)
   (logit 2 "Processing insn " name " ...\n")
+  (logit 4 "     name " name "\n")
+  (logit 4 "  comment " comment "\n")
+  (logit 4 "    attrs " attrs "\n")
+  (logit 4 "   syntax " syntax "\n")
+  (logit 4 "      fmt " fmt "\n")
+  (logit 4 "  asserts " ifield-assertion "\n")
+  (logit 4 "semantics " semantics "\n")
+  (logit 4 "   timing " timing "\n")
 
   ;; Pick out name first to augment the error context.
   (let* ((name (parse-name context name))
@@ -826,12 +931,12 @@
   (find (lambda (insn)
 	  (let* ((i-mask (insn-base-mask insn))
 		 (i-mask-len (insn-base-mask-length insn))
-		 (i-value (insn-value insn))
+		 (i-value (insn-base-value insn))
 		 (subset-insn (find-first 
 			       (lambda (insn2) ; insn2: possible submatch (more mask bits)
 				    (let ((i2-mask (insn-base-mask insn2))
 					  (i2-mask-len (insn-base-mask-length insn2))
-					  (i2-value (insn-value insn2)))
+					  (i2-value (insn-base-value insn2)))
 				      (and (not (eq? insn insn2))
 					   (= i-mask-len i2-mask-len)
 					   (mask-superset? i-mask i-value i2-mask i2-value))))
@@ -860,17 +965,23 @@
 (define (find-identical-insn insn insn-list)
   (let ((i-mask (insn-base-mask insn))
 	(i-mask-len (insn-base-mask-length insn))
-	(i-value (insn-value insn)))
+	(i-value (insn-base-value insn)))
     (find-first 
      (lambda (insn2)
        (let ((i2-mask (insn-base-mask insn2))
 	     (i2-mask-len (insn-base-mask-length insn2))
-	     (i2-value (insn-value insn2)))
+	     (i2-value (insn-base-value insn2)))
 	 (and (= i-mask-len i2-mask-len)
 	      (= i-mask i2-mask)
 	      (= i-value i2-value))))
        insn-list))
 )
+
+(define (find-insns-with-ifield-assertions insn-list)
+  (find (lambda (insn) (insn-ifield-assertion insn)) insn-list))
+
+(define (insn-ifld-assert-func-name insn)
+  (string/symbol-append "ifld_assert_" (obj:name insn)))
 
 ; Helper function for above: does (m1,v1) match a STRICT superset of (m2,v2) ?
 ;
@@ -939,40 +1050,262 @@
 (define (insn-has-ifield? insn f-name)
   (->bool (object-assq f-name (insn-iflds insn)))
 )
+
+; Return sorted list of ifields.
+; The result is cached to speed up the next call.
+
+(define (insn-sorted-iflds insn)
+  (if (elm-get insn 'sorted-iflds)
+      (elm-get insn 'sorted-iflds)
+      (let ((flds (sort-ifield-list (insn-iflds insn)
+                                    ;;(not (current-arch-insn-lsb0?))
+                                    )))
+        (elm-set! insn 'sorted-iflds flds)
+        flds))
+)
+
 
 ; Insn opcode value utilities.
 
 ; Given INSN, return the length in bits of the base mask (insn-base-mask).
 
 (define (insn-base-mask-length insn)
-  (ifmt-mask-length (insn-ifmt insn))
+  (car (ifmt-mask-lengths (insn-ifmt insn)))
 )
 
 ; Given INSN, return the bitmask of constant values (the opcode field)
 ; in the base part.
 
 (define (insn-base-mask insn)
-  (ifmt-mask (insn-ifmt insn))
+  (car (ifmt-masks (insn-ifmt insn)))
 )
 
-; Given INSN, return the sum of the constant values in the insn
-; (i.e. the opcode field).
-;
-; See also (compute-insn-base-mask).
-;
-; FIXME: For non-fixed-length ISAs, using this doesn't feel right.
+;; APB - Start of multi-ifield expansion support.
 
-(define (insn-value insn)
-  (if (elm-get insn '/insn-value)
-      (elm-get insn '/insn-value)
-      (let* ((base-len (insn-base-mask-length insn))
-	     (value (apply +
-			   (map (lambda (fld) (ifld-value fld base-len (ifld-get-value fld)))
-				(find ifld-constant?
-				      (ifields-base-ifields (insn-iflds insn))))
-			   )))
-	(elm-set! insn '/insn-value value)
-	value))
+;; Make APPSTATE for walking the rtx of field F.
+(define (/ifld-exp-appstate-make f)
+  ;; Ensure that this is a fixed ifield.
+  (if (not (and (multi-ifield? f)
+                (ifld-constant? f)))
+      (error "Attempt to create appstate with non constant, non-multi ifield"))
+  f)
+
+;; Access functions for the APPSTATE.
+(define (/ifld-exp-appstate-fixed appstate)     appstate)
+(define (/ifld-exp-appstate-non-fixed appstate) (ifld-real-ifields appstate))
+
+(define (/ifld-exp-rtx-and tstate options mode val1 val2)
+  (logit 3  "Ok, in /ifld-exp-rtx-and with: " val1 " & " val2 " = " )
+  (let ((ans (logand val1 val2)))
+    (logit 3 ans "\n")
+    ans))
+
+;; The rtx walker framework.  Read through rtl-traverse.scm to understand
+;; what's going on here.
+;;
+;; I only handle the bare minimum required here, if we start adding more
+;; complex constructs into ifield expand fields then this will likely need
+;; to be extended.
+(define (/ifld-exp-rtx-const tstate options mode num)
+  (logit 3 "In /ifld-exp-rtx-const with: " num "\n")
+  num)
+
+(define (/ifld-exp-rtx-srl tstate options mode val count)
+  (logit 3 "In /ifld-exp-rtx-srl with: " val " >> " count " = ")
+  (let ((ans (logslr val count)))
+    (logit 3 ans "\n")
+    ans))
+
+(define (/ifld-exp-rtx-or tstate options mode val1 val2)
+  (logit 3 "In /ifld-exp-rtx-or with: " val1 " | " val2 "\n")
+  (logior val1 val2))
+
+(define (/ifld-exp-rtx-sra tstate options mode val count)
+  (logit 3 "In /ifld-exp-rtx-sra with: " val " >> " count "\n")
+  (if (!= 0 val)
+     (error "In /ifld-exp-rtx-sra, need to handle more than just zero"))
+  0)
+
+(define (/ifld-exp-rtx-eq tstate options mode val1 val2)
+  (logit 3 "In /ifld-exp-rtx-eq with: " val1 " == " val2 "\n")
+  (if (eq? val1 val2) -1 0))
+
+(define (/ifld-exp-rtx-ne tstate options mode val1 val2)
+  (logit 3 "In /ifld-exp-rtx-ne with: " val1 " != " val2 "\n")
+  (if (eq? val1 val2) 0 -1))
+
+(define (/ifld-exp-rtx-ifield tstate appstuff options mode sym)
+  (logit 3 "In /ifld-exp-rtx-ifield with: " sym " mode " mode " options " options)
+
+
+  (let ((fixed-ifield (/ifld-exp-appstate-fixed appstuff))
+        (base-ifields (/ifld-exp-appstate-non-fixed appstuff)))
+    (if (eq? (obj:name fixed-ifield) sym)
+        (ifld-get-value fixed-ifield)
+        (let ((dest-ifield (find (lambda (f) (eq? (obj:name f) sym)) base-ifields)))
+          (if (not dest-ifield)
+              (error "Failed to find ifield for " sym))
+          (car dest-ifield)))))
+        
+
+    
+  ;; (if #f ;;(tstate-set? tstate)
+  ;;     (let ((base-ifields (/ifld-exp-appstate-non-fixed appstuff)))
+  ;;       (begin
+  ;;         (logit 3 " setting.\n")
+  ;;         (logit 3 " sub-fields: " (map obj:name base-ifields) "\n")
+  ;;         (let ((dest-ifield (find (lambda (f) (eq? (obj:name f) sym)) base-ifields)))
+  ;;           (if (not dest-ifield)
+  ;;               (error "Failed to find ifield for " sym))
+  ;;           (car dest-ifield))))
+  ;;     (begin
+  ;;       (let ((fixed-ifield (/ifld-exp-appstate-fixed appstuff)))
+  ;;         (if (not fixed-ifield)
+  ;;             (error "unknown ifield" sym))
+  ;;         (logit 3 " = " (ifld-get-value fixed-ifield) "\n")
+  ;;         (ifld-get-value fixed-ifield)))))
+
+(define (/ifld-exp-rtx-set tstate options mode fld val)
+  (logit 3 "In /ifld-exp-rtx-set with: " (obj:name fld) " = " val "\n")
+  (ifld-set-value! fld val)
+  )
+
+(define (/ifld-exp-rtx-walker-func rtx-obj expr parent-expr
+                                   op-pos tstate appstuff)
+  (logit 3 "Processing " (rtx-name expr) ": " (rtx-dump expr) "\n")
+  (logit 3 "  rtx-obj = " rtx-obj "\n")
+
+  (let ((ans
+
+  (case (rtx-name expr)
+    ((ifield)
+     (lambda (tstate options mode sym)
+       (/ifld-exp-rtx-ifield tstate appstuff options mode sym)))
+    ((sequence)
+     #f)
+    ((and)
+     /ifld-exp-rtx-and)
+    ((const)
+     /ifld-exp-rtx-const)
+    ((srl)
+     /ifld-exp-rtx-srl)
+    ((set)
+     /ifld-exp-rtx-set)
+    ((if)
+     (let ((test
+            (/rtx-traverse (rtx-if-test expr) 'RTX expr 1 tstate appstuff)))
+       (cond
+        ((rtx-true? test)
+         (/rtx-traverse (rtx-if-then expr) 'RTX expr 2 tstate appstuff))
+        (else
+         (if (rtx-if-else expr)
+             (/rtx-traverse (rtx-if-else expr) 'RTX expr 3 tstate appstuff)
+             (error "missing else case in if-then-else"))))))
+    ((or)
+     /ifld-exp-rtx-or)
+    ((sra)
+     /ifld-exp-rtx-sra)
+    ((eq)
+     /ifld-exp-rtx-eq)
+    ((ne)
+     /ifld-exp-rtx-ne)
+    (else
+     ;;(error "unable to handle rtx expression" (rtx-name expr)))
+     #f)
+    )))
+    ans))
+
+;; Take an ifield F and return a list of all the ifields that make up F.
+;; This has been written with standard <ifield> and <multi-ifield> in mind,
+;; <derived-ifield> objects will probably not work here, that's something
+;; that still needs to be filled in.
+;;
+;; For multi-ifields, if the ifield is fixed the value is split over all
+;; the component ifields using the rtx epxression from the insert field,
+;; otherwise all the component ifields have their value cleared, this is
+;; because many multi-ifields will share the same component ifields.
+;;
+;; I should probably move this logic elsewhere in the process, I'm thinking
+;; that when a value is assigned to a muli-ifield we should at that stage
+;; distribute the value over all the component ifields, and also create
+;; clones of all the component ifields in order to hold the values.
+
+(define (ifld-expand f)
+  (assert (not (derived-ifield? f)))
+  (if (multi-ifield? f)
+      (if (ifld-constant? f)
+          (let ((rtx (rtx-canonicalize #f 'DFLT  (obj-isa-list f) '() (multi-ifld-insert f))))
+            (rtx-traverse #f #f
+                          rtx
+                          /ifld-exp-rtx-walker-func
+                          (/ifld-exp-appstate-make f)))
+          (for-each ifld-clear-value! (ifld-real-ifields f))))
+  (ifld-real-ifields f))
+
+;; APB - End of multi-ifield expansion support.
+
+; Given INSN, return the sum of the constant values in each word.
+; The result is cached to speed up the next call.
+
+(define (insn-word-values insn)
+  (if (elm-get insn 'word-values)
+
+      (elm-get insn 'word-values)
+
+      (begin
+        (logit 4 "In insn-word-values for " (obj:name insn)
+               " compute word values:\n")
+        (logit 4 "  iflds:")
+        (for-each (lambda (f)
+                    (logit 4 " " (obj:name f)))
+                  (insn-iflds insn))
+        (logit 4 "\n")
+        
+	;; (for-each (lambda (f)
+	;; 	    (if (and (ifld-constant? f)
+	;; 		     (multi-ifield? f))
+        ;;                 (begin
+        ;;                   (logit 4 "  ifld-constant-value " (obj:name f) " = " (ifld-constant-value f) "\n")
+        ;;                   (if (!= (ifld-constant-value f) 0)
+        ;;                       (error (string-append
+        ;;                               "Can't calculate value for multi-ifield " 
+        ;;                               (obj:name f) 
+        ;;                               " with non-zero value " 
+        ;;                               (number->string (ifld-constant-value f))))
+        ;;                       ))))
+	;; 	  (insn-iflds insn))
+
+        (logit 4 "  Stage 1 complete\n")
+        ;; First sort the fields into bins of each "word".
+	(let* ((fld-list
+		;; Have to resort the list in case of multi-ifields.
+		(sort-ifield-list (collect ifld-expand (insn-iflds insn))))
+	       (words (compute-insn-words fld-list))
+	       (bins (map (lambda (word) (cons word '())) words)))
+
+          (logit 4 "  Stage 2 complete\n")
+
+	  (for-each (lambda (f)
+		      ;; ??? Arguably not very efficient.  Optimize later.
+		      (let ((fword (-ifmt-ifield-word f)))
+			(assoc-set! bins fword (cons f (assoc-ref bins fword)))))
+		    fld-list)
+
+          (logit 4 "  Stage 3 complete\n")
+
+	  ;; Now compute the value of each word.
+	  (let ((values (map (lambda (bin)
+			       (apply + (map (lambda (f)
+					       (ifld-value f #f #f))
+					     (find ifld-constant? (cdr bin)))))
+			     bins)))
+            (logit 4 "  Stage 4 complete\n")            
+	    (elm-set! insn 'word-values values)
+            (logit 4 "  Stage 5 complete: " values "\n")
+	    values)
+          )
+        )
+      )
 )
 
 ;; Return the base value of INSN.
@@ -980,19 +1313,45 @@
 (define (insn-base-value insn)
   (if (elm-get insn '/insn-base-value)
       (elm-get insn '/insn-base-value)
-      (let* ((base-len (insn-base-mask-length insn))
-	     (constant-base-iflds
-	      (find (lambda (f)
-		      (and (ifld-constant? f)
-			   (not (ifld-beyond-base? f))))
-		    (ifields-base-ifields (insn-iflds insn))))
-	     (base-value (apply +
-				(map (lambda (f)
-				       (ifld-value f base-len (ifld-get-value f)))
-				     constant-base-iflds))))
-	(elm-set! insn '/insn-base-value base-value)
-	base-value))
+      (let* ((word-values (insn-word-values insn))
+             (base-value (if (pair? word-values)
+                             (car word-values)
+                             0)))
+        (elm-set! insn '/insn-base-value base-value)
+        base-value))
 )
+
+; Return index of word at OFFSET.
+
+(define (/insn-word-index insn offset)
+  (let* ((lengths (ifmt-mask-lengths (insn-ifmt insn)))
+	(offsets (plus-scan (cons 0 lengths)))
+	(search (memq offset offsets)))
+    (assert search)
+    (- (length offsets) (length search)))
+)
+
+; Return mask of word at OFFSET.
+
+(define (insn-mask-at-offset insn offset)
+  (let ((i (/insn-word-index insn offset)))
+    (list-ref (ifmt-masks (insn-ifmt insn)) i))
+)
+
+; Return length of word at OFFSET.
+
+(define (insn-mask-length-at-offset insn offset)
+  (let ((i (/insn-word-index insn offset)))
+    (list-ref (ifmt-mask-lengths (insn-ifmt insn)) i))
+)
+
+; Return value of word at OFFSET.
+
+(define (insn-value-at-offset insn offset)
+  (let ((i (/insn-word-index insn offset)))
+    (list-ref (insn-word-values insn) i))
+)
+
 
 ; Insn operand utilities.
 
@@ -1128,8 +1487,24 @@ Define an instruction, all arguments specified.
   *UNSPECIFIED*
 )
 
+; Called for each instruction.  Check the MACH attribute, including the
+; default MACH value, return #t if we should keep this instruction,
+; otherwise #f.  This can only be used once we've read in all the .cpu
+; files otherwise the default MACH value will not be available.
+
+(define (/check-insn-mach-keep? insn)
+  (let* ((atlist (obj-atlist insn))
+         (machs (atlist-attr-value atlist 'MACH insn)))
+    (if (null? machs)
+       #t
+       (keep-mach? machs))))
+
 ; Called after the .cpu file has been read in.
 
 (define (insn-finish!)
+
+  ;; Remove instructions with the wrong MACH value.
+  (current-insn-filter! /check-insn-mach-keep?)
+  
   *UNSPECIFIED*
 )

@@ -555,8 +555,8 @@ See the input .cpu file(s) for copyright information.
 ; Generate a diagram typically used to display instruction fields.
 
 (define (gen-iformat-table insn)
-  (let* ((lsb0? (current-arch-insn-lsb0?))
-	 (sorted-iflds (sort-ifield-list (insn-iflds insn) (not lsb0?))))
+  (let ((lsb0? (current-arch-insn-lsb0?))
+        (sorted-iflds (insn-sorted-iflds insn)))
     (let ((widths (map ifld-length sorted-iflds))
 	  (names (map obj:name sorted-iflds))
 	  (operands (map (lambda (f)

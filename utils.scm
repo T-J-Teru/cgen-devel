@@ -582,12 +582,6 @@
   (if (null? lis) knil 
       (kons (car lis) (foldr kons knil (cdr lis)))))
 
-;; filter list on predicate
-
-(define (filter p ls)
-  (foldr (lambda (x a) (if (p x) (cons x a) a)) 
-	 '() ls))
-
 ; APL's +\ operation on a vector of numbers.
 
 (define (plus-scan l)
@@ -990,7 +984,7 @@
 	(loop (+ result (remainder bits 2)) (quotient bits 2))))
 )
 
-; Convert bits in N #f/#t.
+; Convert bits in N to #f/#t list.
 ; LENGTH is the length of N in bits.
 
 (define (bits->bools n length)
@@ -1502,3 +1496,63 @@ This file is part of CGEN.
 		  var-names)))
     (list 'debug-repl (cons 'list env)))
 )
+
+
+;; Improved version of string-append.
+
+(define string-append-orig string-append)
+(define (string-append . args)
+  (apply string-append-orig (map (lambda (thing)
+                                   (cond
+                                    ((string? thing) thing)
+                                    ((symbol? thing) (symbol->string thing))
+                                    ((number? thing) (number->string thing))
+                                    (else "unknown"))) args)))
+ 
+
+; There's probably a builtin that does something like this
+
+(define (ptype obj)
+  (cond
+   ((boolean? obj) "boolean")
+   ((symbol? obj) "symbol")
+   ((procedure? obj) "procedure")
+   ((char? obj) "char")
+   ((vector? obj) "vector")
+   ((list? obj) "list")
+   ((pair? obj) "pair")
+   ((integer? obj) "integer")
+   ((number? obj) "number")
+   ((string? obj) "string")
+   ((port? obj) "port")
+   (else "unknown type"))
+)
+
+; Convert a string into a string that represents a series of bytes
+; suitable for planting into C code. As an example, the string "abc"
+; would become "'a', 'b', 'c'".
+; Should handle escaped characters in the original string.
+
+(define (string->c-bytes string)
+  (let loop ((str string) (result ""))
+    (cond 
+     ((= (string-length str) 0) result)
+     
+     ((char=? #\\ (string-ref str 0))
+      (if (= (string-length str) 1)
+	  (error "missing char after '\\' in" string))
+      (let ((escaped-char (string-ref str 1))
+	    (remainder (string-drop 2 str)))
+	(if (char=? #\\ escaped-char)
+	    (loop remainder (string-append result "'\\\\', "))
+	    (loop remainder (string-append result "'" 
+					   (string escaped-char) 
+					   "', ")))))
+     
+     ;; Append the character to the result.
+     (else (loop (string-drop1 str)
+		 (string-append result 
+				"'" 
+				(string-take1 str) 
+				"', "))))))
+

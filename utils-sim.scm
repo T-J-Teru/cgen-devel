@@ -666,7 +666,8 @@
   (logit 3 "Generating decode insn entry for " (obj:name (dtable-entry-value entry)) " ...\n")
 
   (let* ((insn (dtable-entry-value entry))
-	 (fmt-name (gen-sym (insn-sfmt insn))))
+    	 (fmt-name (gen-sym (if (with-reg-usage?) insn (insn-sfmt insn)))))
+
 
     (cond
 
@@ -720,10 +721,19 @@
 			    indent "    if (("
 			    (if (adata-integral-insn? CURRENT-ARCH) "entire_insn" "base_insn")
 			    " & " (gen-c-hex-constant (insn-base-mask insn) "CGEN_INSN_LGUINT")
-			    ") == " (gen-c-hex-constant (insn-value insn) "CGEN_INSN_LGUINT") ")\n"
-			    (/gen-bracketed-set-itype-and-extract (string-append indent "      ")
-								  (gen-cpu-insn-enum (current-cpu) insn)
-								  fmt-name fn?)
+                            ;; APB: The use of insn-base-value below is WRONG, need to figure out exactly
+                            ;; what this code is doing and generate the correct thing here.
+			    ") == " (gen-c-hex-constant (insn-base-value insn) "CGEN_INSN_LGUINT") ") {\n"
+
+                            ;; APB: The following is a hack to layout the result similarly to the previous
+                            ;; version of cgen.  This should make the diff smaller.  Later I can revisit
+                            ;; this code and "revert" to the new layouy, reducing the changes in the cgen code.
+                            indent "      " (/gen-set-itype-and-extract (gen-cpu-insn-enum (current-cpu) insn)
+                                                                        fmt-name fn?) " }\n"
+			    ;; (/gen-bracketed-set-itype-and-extract (string-append indent "      ")
+			    ;;     				  (gen-cpu-insn-enum (current-cpu) insn)
+                            ;;     				  fmt-name fn?)
+                                                                        
 			    indent "    "
 			    (/gen-decode-default-entry invalid-insn fn?)
 			    "\n")))))))
@@ -1084,7 +1094,8 @@
 ; Decoder generation entry point.
 ; Generate code to decode INSN-LIST.
 ; BITNUMS is the set of bits to initially key off of.
-; DECODE-BITSIZE is the number of bits of the instruction that `insn' holds.
+; DECODE-BITSIZE is the number of bits of the instruction that C variable
+; `insn' holds.  Basically, it's the base insn size.
 ; LSB0? is non-#f if bit number 0 is the least significant bit.
 ; INVALID-INSN is the <insn> object of the pseudo insn to handle invalid ones.
 ; FN? is non-#f if the extractors are functions rather than inline code

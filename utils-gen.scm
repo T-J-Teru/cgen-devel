@@ -122,10 +122,16 @@
 (define (/gen-extract-word word-name word-start word-length
 			   field-start field-length
 			   unsigned? lsb0?)
-  (let* ((word-end (+ word-start word-length))
+  (logit 4 "/gen-extract-word " word-name " " word-start " " word-length " " field-start " " field-length " " unsigned? " " lsb0? "\n")
+  (let* ((word-end (if lsb0? (+ 1 word-start) (+ word-start word-length)))
+         (word-base (if lsb0? (- (+ 1 word-start) word-length) word-start))
 	 (start (if lsb0? (+ 1 (- field-start field-length)) field-start))
 	 (end (+ start field-length))
-	 (base (if (< start word-start) word-start start)))
+	 (base (if (< start word-base) word-base start)))
+    (logit 4 "    word-end " word-end "\n")
+    (logit 4 "       start " start "\n")
+    (logit 4 "         end " end "\n")
+    (logit 4 "        base " base "\n")
     (string-append "("
 		   "EXTRACT_"
 		   (if lsb0? "LSB0_" "MSB0_")
@@ -149,7 +155,7 @@
 		    (if lsb0?
 			(if (> end word-end)
 			    (- word-end 1)
-			    (- end word-start 1))
+			    (- end word-base 1))
 			(if (< start word-start)
 			    0
 			    (- start word-start))))
@@ -189,17 +195,20 @@
 ; containing whatever is left over).
 
 (define (/gen-ifld-extract-beyond f base-length total-length var-list)
-   ; First compute the list of variables that contains pieces of the
-   ; desired value.
+  ;; First compute the list of variables that contains pieces of the
+  ;; desired value.
+  (logit 4 "In /gen-ifld-extract-beyond for " (obj:name f) "\n")
+  (logit 4 "   ifld-start = " (ifld-start f) "\n")
+  (logit 4 "   ifld-word-offset = " (ifld-word-offset f) "\n")
+  (logit 4 "   ifld-word-length = " (ifld-word-length f) "\n")
    (let ((start (+ (ifld-start f) (ifld-word-offset f)))
 	 (length (ifld-length f))
-	 ;(word-start (ifld-word-offset f))
-	 ;(word-length (ifld-word-length f))
 	 ; extraction code
 	 (extraction #f)
          ; extra processing to perform on extracted value
 	 (decode (ifld-decode f))
 	 (lsb0? (current-arch-insn-lsb0?)))
+     (logit 4 " ifld " (obj:name f) " computed start = " start " length = " length "\n")
      ; Find which vars are needed and move the value into place.
      (let loop ((var-list var-list) (result (list ")")))
        (if (null? var-list)
@@ -207,19 +216,24 @@
 	   (let ((var-name (caar var-list))
 		 (var-start (cadar var-list))
 		 (var-length (caddar var-list)))
+             (logit 4 "  var = " var-name " start = " var-start " length = " var-length "\n")
+             (logit 4 "  ifield start = " start " length = " length "\n")
+             (logit 4 "  lsb0? = " lsb0? "\n")
 	     (if (bitrange-overlap? start length
 				    var-start var-length
 				    lsb0?)
-		 (loop (cdr var-list)
-		       (cons "|"
-			     (cons (/gen-extract-word var-name
-						      var-start
-						      var-length
-						      start length
-						      (eq? (mode:class (ifld-mode f))
-							   'UINT)
-						      lsb0?)
-				   result)))
+                 (begin
+                   (logit 4 "    overlaps\n")
+                   (loop (cdr var-list)
+                         (cons "|"
+                               (cons (/gen-extract-word var-name
+                                                        var-start
+                                                        var-length
+                                                        start length
+                                                        (eq? (mode:class (ifld-mode f))
+                                                             'UINT)
+                                                        lsb0?)
+                                     result))))
 		 (loop (cdr var-list) result)))))
      ; If the field doesn't have a special decode expression, just return the
      ; raw extracted value.  Otherwise, emit the expression.
@@ -239,6 +253,9 @@
 ; Return C code to extract <ifield> F.
 
 (define (gen-ifld-extract f indent base-length total-length base-value var-list macro?)
+  (logit 4 "In gen-ifld-extract for " (obj:name f) " base-length = " base-length
+         " total-length = " total-length " base-value = " base-value " var-list = " var-list
+         " macro? = " macro? "\n")
   (string-append
    indent
    (gen-sym f)
@@ -431,14 +448,22 @@
 ; CHUNK-SPECS is a list of (offset . length) pairs.
 
 (define (/gen-extract-beyond-var-list base-length var-prefix chunk-specs lsb0?)
-  ; ??? lsb0? support ok?
-  (cons (list "insn" 0 base-length)
-	(map (lambda (chunk-num chunk-spec)
-	       (list (string-append var-prefix (number->string chunk-num))
-		     (car chunk-spec)
-		     (cdr chunk-spec)))
-	     (iota (length chunk-specs) 1)
-	     chunk-specs))
+  ;; ??? lsb0? support ok?
+  (if lsb0?
+      (cons (list "insn" (- base-length 1 ) base-length)
+            (map (lambda (chunk-num chunk-spec)
+                   (list (string-append var-prefix (number->string chunk-num))
+                         (+ (car chunk-spec) (cdr chunk-spec) -1)
+                         (cdr chunk-spec)))
+                 (iota (length chunk-specs) 1)
+                 chunk-specs))
+      (cons (list "insn" 0 base-length)
+            (map (lambda (chunk-num chunk-spec)
+                   (list (string-append var-prefix (number->string chunk-num))
+                         (car chunk-spec)
+                         (cdr chunk-spec)))
+                 (iota (length chunk-specs) 1)
+                 chunk-specs)))
 )
 
 ; Return C code to extract IFIELDS.
@@ -470,11 +495,13 @@
 ; doing this for now.
 
 (define (gen-extract-ifields ifields total-length indent macro?)
+  (logit 2 "Entering gen-extract-ifields\n")
   (let* ((base-length (if (adata-integral-insn? CURRENT-ARCH)
 			  32
 			  (state-base-insn-bitsize)))
 	 (chunk-specs (/extract-chunk-specs base-length total-length
 					    (current-arch-default-alignment))))
+    (logit 4 "Chunk specs = " chunk-specs "\n")
     (string-list
      ; If the insn has a trailing part, fetch it.
      ; ??? Could have more intelligence here.  Later.
@@ -549,3 +576,9 @@
 		 (map (lambda (sfmt) (cons (obj:name sfmt) nil))
 		      sfmt-list))
 )
+
+;; Code to generate register usage log.  This is probably not really
+;; needed upstream, so it's just empty.  Return empty string list.
+(define (gen-register-usage-log iflds-list indent)
+  (logit 2 "gen-register-usage-log....\n")
+  (string-list ""))
