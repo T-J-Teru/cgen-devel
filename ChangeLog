@@ -1,5 +1,13 @@
 2016-03-02  Andrew Burgess  <andrew.burgess@embecosm.com>
 
+	* Makefile.in: Regenerate with automake 1.11.1
+	* aclocal.m4: Likewise.
+	* doc/Makefile.in: Likewise.
+	* testsuite/Makefile.in: Likewise.
+	* configure: Regenerate with autoconf 2.64.
+
+2016-03-02  Andrew Burgess  <andrew.burgess@embecosm.com>
+
 	* .gitignore: Add autom4te.cache pattern.
 
 2016-03-02  Andrew Burgess  <andrew.burgess@embecosm.com>
