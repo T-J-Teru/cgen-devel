@@ -1,0 +1,39 @@
+These build notes were sent to the CGEN mailing list 19-June-2015:
+
+1) put guile 1.8.8 in $PATH
+
+[no special configure options are needed, just --prefix]
+
+2) check out cgen
+
+bash$ cd /place/to/put/cgen
+bash$ cvs -d :pserver:anoncvs@sourceware.org:/cvs/src co cgen
+
+2b) make sure the build can find it
+
+bash$ ln -s $(pwd)/src/cgen $git/cgen
+
+There's a TODO to be able to specify the path to cgen
+when configuring binutils,gdb.
+I've always just done this hack when I need it.
+
+3) apply this patch
+
+https://sourceware.org/ml/gdb-patches/2015-06/msg00395.html
+
+4) Build all the sims.
+Generated files that need regenerating will be,
+including the opcodes files.
+
+bash$ cd $build
+bash$ $git/configure --prefix=$(pwd)/rel \
+    --enable-cgen-maint \
+    --enable-targets=all \
+    --enable-sim
+bash$ make all-sim
+
+If/when some form of (3) gets applied, and the TODO is done,
+the steps should be simple enough.
+
+Heads up, if you try this today there are two other outstanding patches
+to cgen that affect the generated files.
