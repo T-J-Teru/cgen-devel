@@ -201,15 +201,25 @@
 ; Return the table for IFMT, an <iformat> object.
 
 (define (/gen-ifmt-table-1 ifmt)
+  (logit 4 "mask lengths: " (ifmt-mask-lengths ifmt) "\n")
   (gen-obj-sanitize
    (ifmt-eg-insn ifmt) ; sanitize based on the example insn
    (string-list
     "static const CGEN_IFMT " (gen-sym ifmt) " ATTRIBUTE_UNUSED = {\n"
     "  "
-    (number->string (ifmt-mask-length ifmt)) ", "
     (number->string (ifmt-length ifmt)) ", "
-    "0x" (number->string (ifmt-mask ifmt) 16) ", "
+    (number->string (length (ifmt-mask-lengths ifmt))) ", "
     "{ "
+    (string-drop 2
+                 (string-map (lambda (ml)
+                               (string-append ", " (number->string ml)))
+                             (ifmt-mask-lengths ifmt)))
+    " }, { "
+    (string-drop 2
+                 (string-map (lambda (m)
+                               (string-append ", 0x" (number->string m 16)))
+                             (ifmt-masks ifmt)))
+    " }, { "
     (string-list-map (lambda (ifld)
 		       (string-list "{ F (" (ifld-enum ifld #f) ") }, "))
 		     (ifmt-ifields ifmt))
@@ -322,14 +332,16 @@
 ; Return the definition of an instruction value entry.
 
 (define (gen-ivalue-entry insn)
-  (string-list "{ "
-	       "0x" (number->string (insn-value insn) 16)
-	       (if #f ; (ifmt-opcodes-beyond-base? (insn-ifmt insn))
-		   (string-list ", { "
-				; ??? wip: opcode values beyond the base insn
-				"0 }")
-		   "")
-	       " }")
+  (string-list
+   "{ { "
+   ;; Every iteration of the loop adds ", <content>", we want to
+   ;; remove the leading ", ", hence the "string-drop 2" here.
+   (string-drop 2
+		(string-map (lambda (v)
+			      (string-append ", 0x" (number->string v 16)))
+			    (insn-word-values insn)))
+   " } }"
+  )
 )
 
 ; Generate an insn opcode entry for INSN.

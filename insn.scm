@@ -19,6 +19,7 @@
 		; The insn fields as specified in the .cpu file.
 		; Also contains values for constant fields.
 		iflds
+                (/word-values . #f) ; Lazilt computed cache
 		(/insn-value . #f) ; Lazily computed cache
 		(/insn-base-value . #f) ; Lazily computed cache
 
@@ -945,15 +946,179 @@
 ; Given INSN, return the length in bits of the base mask (insn-base-mask).
 
 (define (insn-base-mask-length insn)
-  (ifmt-mask-length (insn-ifmt insn))
+  (car (ifmt-mask-lengths (insn-ifmt insn)))
 )
 
 ; Given INSN, return the bitmask of constant values (the opcode field)
 ; in the base part.
 
 (define (insn-base-mask insn)
-  (ifmt-mask (insn-ifmt insn))
+  (car (ifmt-masks (insn-ifmt insn)))
 )
+
+;; APB - Start of multi-ifield expansion support.
+
+;; Make APPSTATE for walking the rtx of field F.
+(define (/ifld-exp-appstate-make f)
+  ;; Ensure that this is a fixed ifield.
+  (if (not (and (multi-ifield? f)
+                (ifld-constant? f)))
+      (error "Attempt to create appstate with non constant, non-multi ifield"))
+  f)
+
+;; Access functions for the APPSTATE.
+(define (/ifld-exp-appstate-fixed appstate)     appstate)
+(define (/ifld-exp-appstate-non-fixed appstate) (ifld-real-ifields appstate))
+
+(define (/ifld-exp-rtx-and tstate options mode val1 val2)
+  (logit 3  "Ok, in /ifld-exp-rtx-and with: " val1 " & " val2 " = " )
+  (let ((ans (logand val1 val2)))
+    (logit 3 ans "\n")
+    ans))
+
+;; The rtx walker framework.  Read through rtl-traverse.scm to understand
+;; what's going on here.
+;;
+;; I only handle the bare minimum required here, if we start adding more
+;; complex constructs into ifield expand fields then this will likely need
+;; to be extended.
+(define (/ifld-exp-rtx-const tstate options mode num)
+  (logit 3 "In /ifld-exp-rtx-const with: " num "\n")
+  num)
+
+(define (/ifld-exp-rtx-srl tstate options mode val count)
+  (logit 3 "In /ifld-exp-rtx-srl with: " val " >> " count " = ")
+  (let ((ans (logslr val count)))
+    (logit 3 ans "\n")
+    ans))
+
+(define (/ifld-exp-rtx-or tstate options mode val1 val2)
+  (logit 3 "In /ifld-exp-rtx-or with: " val1 " | " val2 "\n")
+  (logior val1 val2))
+
+(define (/ifld-exp-rtx-sra tstate options mode val count)
+  (logit 3 "In /ifld-exp-rtx-sra with: " val " >> " count "\n")
+  (if (!= 0 val)
+     (error "In /ifld-exp-rtx-sra, need to handle more than just zero"))
+  0)
+
+(define (/ifld-exp-rtx-eq tstate options mode val1 val2)
+  (logit 3 "In /ifld-exp-rtx-eq with: " val1 " == " val2 "\n")
+  (if (eq? val1 val2) -1 0))
+
+(define (/ifld-exp-rtx-ne tstate options mode val1 val2)
+  (logit 3 "In /ifld-exp-rtx-ne with: " val1 " != " val2 "\n")
+  (if (eq? val1 val2) 0 -1))
+
+(define (/ifld-exp-rtx-ifield tstate appstuff options mode sym)
+  (logit 3 "In /ifld-exp-rtx-ifield with: " sym " mode " mode " options " options)
+
+
+  (let ((fixed-ifield (/ifld-exp-appstate-fixed appstuff))
+        (base-ifields (/ifld-exp-appstate-non-fixed appstuff)))
+    (if (eq? (obj:name fixed-ifield) sym)
+        (ifld-get-value fixed-ifield)
+        (let ((dest-ifield (find (lambda (f) (eq? (obj:name f) sym)) base-ifields)))
+          (if (not dest-ifield)
+              (error "Failed to find ifield for " sym))
+          (car dest-ifield)))))
+        
+
+    
+  ;; (if #f ;;(tstate-set? tstate)
+  ;;     (let ((base-ifields (/ifld-exp-appstate-non-fixed appstuff)))
+  ;;       (begin
+  ;;         (logit 3 " setting.\n")
+  ;;         (logit 3 " sub-fields: " (map obj:name base-ifields) "\n")
+  ;;         (let ((dest-ifield (find (lambda (f) (eq? (obj:name f) sym)) base-ifields)))
+  ;;           (if (not dest-ifield)
+  ;;               (error "Failed to find ifield for " sym))
+  ;;           (car dest-ifield))))
+  ;;     (begin
+  ;;       (let ((fixed-ifield (/ifld-exp-appstate-fixed appstuff)))
+  ;;         (if (not fixed-ifield)
+  ;;             (error "unknown ifield" sym))
+  ;;         (logit 3 " = " (ifld-get-value fixed-ifield) "\n")
+  ;;         (ifld-get-value fixed-ifield)))))
+
+(define (/ifld-exp-rtx-set tstate options mode fld val)
+  (logit 3 "In /ifld-exp-rtx-set with: " (obj:name fld) " = " val "\n")
+  (ifld-set-value! fld val)
+  )
+
+(define (/ifld-exp-rtx-walker-func rtx-obj expr parent-expr
+                                   op-pos tstate appstuff)
+  (logit 3 "Processing " (rtx-name expr) ": " (rtx-dump expr) "\n")
+  (logit 3 "  rtx-obj = " rtx-obj "\n")
+
+  (let ((ans
+
+  (case (rtx-name expr)
+    ((ifield)
+     (lambda (tstate options mode sym)
+       (/ifld-exp-rtx-ifield tstate appstuff options mode sym)))
+    ((sequence)
+     #f)
+    ((and)
+     /ifld-exp-rtx-and)
+    ((const)
+     /ifld-exp-rtx-const)
+    ((srl)
+     /ifld-exp-rtx-srl)
+    ((set)
+     /ifld-exp-rtx-set)
+    ((if)
+     (let ((test
+            (/rtx-traverse (rtx-if-test expr) 'RTX expr 1 tstate appstuff)))
+       (cond
+        ((rtx-true? test)
+         (/rtx-traverse (rtx-if-then expr) 'RTX expr 2 tstate appstuff))
+        (else
+         (if (rtx-if-else expr)
+             (/rtx-traverse (rtx-if-else expr) 'RTX expr 3 tstate appstuff)
+             (error "missing else case in if-then-else"))))))
+    ((or)
+     /ifld-exp-rtx-or)
+    ((sra)
+     /ifld-exp-rtx-sra)
+    ((eq)
+     /ifld-exp-rtx-eq)
+    ((ne)
+     /ifld-exp-rtx-ne)
+    (else
+     ;;(error "unable to handle rtx expression" (rtx-name expr)))
+     #f)
+    )))
+    ans))
+
+;; Take an ifield F and return a list of all the ifields that make up F.
+;; This has been written with standard <ifield> and <multi-ifield> in mind,
+;; <derived-ifield> objects will probably not work here, that's something
+;; that still needs to be filled in.
+;;
+;; For multi-ifields, if the ifield is fixed the value is split over all
+;; the component ifields using the rtx epxression from the insert field,
+;; otherwise all the component ifields have their value cleared, this is
+;; because many multi-ifields will share the same component ifields.
+;;
+;; I should probably move this logic elsewhere in the process, I'm thinking
+;; that when a value is assigned to a muli-ifield we should at that stage
+;; distribute the value over all the component ifields, and also create
+;; clones of all the component ifields in order to hold the values.
+
+(define (/ifld-expand f)
+  (assert (not (derived-ifield? f)))
+  (if (multi-ifield? f)
+      (if (ifld-constant? f)
+          (let ((rtx (rtx-canonicalize #f 'DFLT  (obj-isa-list f) '() (multi-ifld-insert f))))
+            (rtx-traverse #f #f
+                          rtx
+                          /ifld-exp-rtx-walker-func
+                          (/ifld-exp-appstate-make f)))
+          (for-each ifld-clear-value! (ifld-real-ifields f))))
+  (ifld-real-ifields f))
+
+;; APB - End of multi-ifield expansion support.
 
 ; Given INSN, return the sum of the constant values in the insn
 ; (i.e. the opcode field).
@@ -975,6 +1140,49 @@
 	value))
 )
 
+(define (insn-word-values insn)
+  (if (elm-get insn '/word-values)
+      (elm-get insn '/word-values)
+
+      (begin
+        (logit 4 "In insn-word-values for " (obj:name insn)
+               " compute word values:\n")
+        (logit 4 "  iflds:")
+        (for-each (lambda (f)
+                    (logit 4 " " (obj:name f)))
+                  (insn-iflds insn))
+        (logit 4 "\n")
+
+        (let* ((fld-list (insn-iflds insn))
+               (words (compute-insn-words fld-list))
+	       (bins (map (lambda (word) (cons word '())) words))
+               (const-fld-list
+                (sort-ifield-list
+                 (collect /ifld-expand (find ifld-constant? fld-list))
+                 (not (current-arch-insn-lsb0?)))))
+          ;; We now have a set of bins into which we wish to split the
+          ;; constant ifields, held in const-fld-list.
+	  (for-each
+           (lambda (f)
+             ;; ??? Arguably not very efficient.  Optimize later.
+             (let ((fword (ifmt-ifield-word f)))
+               (assoc-set! bins fword (cons f (assoc-ref bins fword)))))
+           const-fld-list)
+
+          (elm-set! insn '/word-values
+                    (map (lambda (bin)
+                           (apply +
+                                  (map (lambda (f)
+                                         (ifld-value f #f (ifld-get-value f)))
+                                       (cdr bin))))
+                         bins)))
+        (logit 4 "  values: " (map (lambda (v)
+                                     (string-append "0x"
+                                     (number->hex v)))
+                                   (elm-get insn '/word-values)) "\n")
+        (elm-get insn '/word-values)))
+)
+
 ;; Return the base value of INSN.
 
 (define (insn-base-value insn)
@@ -991,6 +1199,11 @@
 				       (ifld-value f base-len (ifld-get-value f)))
 				     constant-base-iflds))))
 	(elm-set! insn '/insn-base-value base-value)
+        (logit 3
+               "Compute insn-base-value for " (obj:name insn) "\n"
+               " mask-lengths: " (ifmt-mask-lengths (insn-ifmt insn)) "\n"
+               "     base-len: " base-len "\n"
+               "   base-value: " (number->hex base-value) "\n")
 	base-value))
 )
 

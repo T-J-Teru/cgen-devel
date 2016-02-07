@@ -131,6 +131,15 @@
   (send self 'set-field-value! new-val)
 )
 
+(method-make!
+ <ifield> 'clear-field-value!
+ (lambda (self)
+   (elm-set! self 'value #f))
+)
+(define (ifld-clear-value! self)
+  (send self 'clear-field-value!)
+)
+
 ; Return a boolean indicating if X is an <ifield>.
 
 (define (ifield? x) (class-instance? <ifield> x))
@@ -403,8 +412,10 @@
  <ifield> 'pretty-print
  (lambda (self)
    (string-append "(" (obj:str-name self)
-		  " " (number->string (ifld-start self))
-		  " " (number->string (ifld-length self))
+		  " W=" (number->string (ifld-word-offset self))
+		  ":" (number->string (ifld-word-length self))
+		  " F=" (number->string (ifld-start self))
+		  ":" (number->string (ifld-length self))
 		  ")"))
 )
 
@@ -412,6 +423,20 @@
   (send f 'pretty-print)
 )
 
+
+; Return list of sorted subfields.
+; The result is cached to speed up the next call.
+
+(define (multi-ifld-sorted-subfields mf lsb0?)
+  (if (elm-get mf 'sorted-subfields)
+      (elm-get mf 'sorted-subfields)
+      (let ((ssf (sort-ifield-list (elm-get mf 'subfields)
+                                   lsb0?
+                                   )))
+       (elm-set! mf 'sorted-subfields ssf)
+       ssf))
+)
+
 ; Parse an ifield definition.
 ; This is the main routine for building an ifield object from a
 ; description in the .cpu file.
@@ -731,6 +756,8 @@ Define an instruction multi-field, all arguments specified.
 		insert
 		; rtl to set self from SUBFIELDS
 		extract
+                ; sorted version of subfields, lazily cached
+                (sorted-subfields . #f)
 		)
 	      nil)
 )
@@ -1130,6 +1157,35 @@ Define an instruction multi-field, all arguments specified.
 
 ; Misc. utilities.
 
+; Traverse the ifield to collect all real (non-derived and non-multi) ifields
+; used in it.
+
+(define (ifld-real-ifields ifld)
+  (cond ((derived-ifield? ifld) (collect (lambda (subfield)
+                                           (ifld-real-ifields subfield))
+                                         (derived-ifield-subfields ifld)))
+        ((multi-ifield? ifld) (collect (lambda (subfield)
+                                         (ifld-real-ifields subfield))
+                                       (multi-ifld-subfields ifld)))
+        (else (list ifld)))
+)
+
+; Subroutine of sort-ifield-list.
+; Return the starting bit number to use to sort F.
+; Fields are always sorted so that the field with the MSB of the first word
+; of the insn comes first.
+
+(define (/ifld-start-bit-for-sort f up?)
+  (if (multi-ifield? f)
+      (/ifld-start-bit-for-sort (car (multi-ifld-sorted-subfields
+                                      f
+                                      (not (ifld-lsb0? f)))) up?)
+      (+ (ifld-word-offset f)
+	(if (ifld-lsb0? f)
+	    (- (ifld-word-length f) 1 (ifld-start f))
+	    (ifld-start f))))
+)
+
 ; Sort a list of fields (sorted by the starting bit number).
 ; This must be carefully defined to pass through Hobbit.
 ; (define foo (if x bar baz)) is ok.
@@ -1139,7 +1195,7 @@ Define an instruction multi-field, all arguments specified.
 ; so I think this needn't use a general purpose sort routine (should it become
 ; an issue).
 
-(define sort-ifield-list
+(define sort-ifield-list-1
   (if (and (defined? 'cgh-qsort) (defined? 'cgh-qsort-int-cmp))
       (lambda (fld-list up?)
 	(cgh-qsort fld-list
@@ -1153,11 +1209,26 @@ Define an instruction multi-field, all arguments specified.
       (lambda (fld-list up?)
 	(sort fld-list
 	      (if up?
-		  (lambda (a b) (< (ifld-start a)
-				   (ifld-start b)))
-		  (lambda (a b) (> (ifld-start a)
-				   (ifld-start b)))))))
+		  (lambda (a b) (< (/ifld-start-bit-for-sort a up?)
+				   (/ifld-start-bit-for-sort b up?)))
+		  (lambda (a b) (> (/ifld-start-bit-for-sort a up?)
+				   (/ifld-start-bit-for-sort b up?)))))))
 )
+
+(define (sort-ifield-list list up?)
+  (logit 4 "(before) sort-ifield-list: ")
+  (for-each (lambda (f)
+              (logit 4 " (" (obj:name f) ":" (ifld-start f) ")"))
+            list)
+  (logit 4 "\n")
+
+  (let ((answer (sort-ifield-list-1 list up?)))
+    (logit 4 "(after)  sort-ifield-list: ")
+    (for-each (lambda (f)
+                (logit 4 " (" (obj:name f) ":" (ifld-start f) ")"))
+              answer)
+    (logit 4 "\n")
+    answer))
 
 ; Return a boolean indicating if field F extends beyond the base insn.
 
