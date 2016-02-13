@@ -1,5 +1,11 @@
 2016-03-02  Andrew Burgess  <andrew.burgess@embecosm.com>
 
+	* enum.scm (enum-sequential?): Rename to...
+	(/enum-sequential?): ...this.
+	(gen-enum-decl): Update call for new name /enum-sequential?.
+
+2016-03-02  Andrew Burgess  <andrew.burgess@embecosm.com>
+
 	* utils.scm (copyright-fsf): Update format and dates in generated
 	copyright header.
 
