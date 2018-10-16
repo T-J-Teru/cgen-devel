@@ -272,31 +272,35 @@
 	     (append!
 	      result
 	      (string-list
-	       (if (and san? include-sanitize-marker?)
-		   ; split string to avoid removal
-		   (string-append "\n/* start-"
-				  "sanitize-"
-				  san-code " */")
+	       (if san?
+		   (string-append "\n"
+				  (if include-sanitize-marker?
+				      ; split string to avoid removal
+				      (string-append "/* start-"
+						     "sanitize-"
+						     san-code " */\n")
+				      "")
+				  " ")
 		   "")
-	       (if (or san? (=? (remainder n 4) 0))
-		   "\n "
-		   "")
-	       (if (= n 0)
-		   " "
-		   ", ")
-	       (string-upcase (gen-c-symbol prefix))
-	       (string-upcase (gen-c-symbol (car e)))
-	       (if (or sequential?
-		       (null? (cdr e))
-		       (eq? '- (cadr e)))
-		   ""
-		   (string-append " = "
-				  (if (number? (cadr e))
-				      (if (>= (cadr e) #x80000000)
-					  (string-append "0x"
-						(number->string (cadr e) 16))
-					  (number->string (cadr e)))
-				      (string-upcase (cadr e)))))
+	       (string-upcase
+		(string-append
+		 (if (and (not san?) (=? (remainder n 4) 0))
+		     "\n "
+		     "")
+		 (if (= n 0)
+		     " "
+		     ", ")
+		 (gen-c-symbol prefix)
+		 (gen-c-symbol (car e))
+		 (if (or sequential?
+			 (null? (cdr e))
+			 (eq? '- (cadr e)))
+		     ""
+		     (string-append " = "
+				    (if (number? (cadr e))
+					(number->string (cadr e))
+					(cadr e))))
+		 ))
 	       (if (and san? include-sanitize-marker?)
 		   ; split string to avoid removal
 		   (string-append "\n/* end-"

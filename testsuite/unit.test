@@ -1,0 +1,18 @@
+# -*- shell-script -*-
+
+test=unit
+
+source ./test-utils.sh
+
+cpu_file=${test}.test.cpu
+rm -f ${cpu_file}
+
+cat > ${cpu_file} <<EOF
+(define-rtl-version 0 9)
+(include "${srcdir}/../cpu/simplify.inc")
+(include "${srcdir}/testsuite.cpu")
+EOF
+
+run_cgen -f ${cpu_file}
+
+finish
