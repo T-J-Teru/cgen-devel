@@ -48,7 +48,7 @@ static const struct insn_sem @prefix@_insn_sem[] =
 	(string-list
 	 "  { "
 	 (if virtual?
-	     (string-append "VIRTUAL_INSN_" (string-upcase name) ", ")
+	     (string-append "(CGEN_INSN_TYPE)VIRTUAL_INSN_" (string-upcase name) ", ")
 	     (string-append "@ARCH@_INSN_" (string-upcase name) ", "))
          (string-append "@PREFIX@_INSN_" (string-upcase name) ", ")
 	 "@PREFIX@_" (/gen-fmt-enum (insn-sfmt insn))
@@ -72,7 +72,7 @@ static const struct insn_sem @prefix@_insn_sem[] =
 
 static const struct insn_sem @prefix@_insn_sem_invalid =
 {
-  VIRTUAL_INSN_X_INVALID, @PREFIX@_INSN_X_INVALID, @PREFIX@_SFMT_EMPTY"
+  (CGEN_INSN_TYPE)VIRTUAL_INSN_X_INVALID, @PREFIX@_INSN_X_INVALID, @PREFIX@_SFMT_EMPTY"
    (if (and (with-parallel?) (not (with-parallel-only?)))
        ", NOPAR, NOPAR"
        "")
@@ -428,7 +428,7 @@ void
 ; by the semantic code.  This is currently done by recording this information
 ; with the format.
 
-(define (/gen-extract-case sfmt)
+(define (/gen-extract-case-sfmt sfmt)
   (logit 2 "Processing extractor for \"" (sfmt-key sfmt) "\" ...\n")
   (string-list
    " extract_" (gen-sym sfmt) ":\n"
@@ -455,11 +455,54 @@ void
    )
 )
 
+(define (/gen-extract-case-insn insn)
+  (logit 2 "Processing extractor for \"" (obj:name insn) "\" ...\n")
+  (string-list
+   " extract_" (gen-sym insn) ":\n"
+   "  {\n"
+   "    const IDESC *idesc = &" IDESC-TABLE-VAR "[itype];\n"
+   (if (> (length (sfmt-iflds (insn-sfmt insn))) 0)
+       (string-append
+       "    CGEN_INSN_INT insn = "
+       (if (adata-integral-insn? CURRENT-ARCH)
+	   "entire_insn;\n"
+	   "base_insn;\n"))
+       "")
+   (gen-define-field-macro (insn-sfmt insn))
+   (gen-define-ifields (sfmt-iflds (insn-sfmt insn)) (sfmt-length (insn-sfmt insn)) "    " #f)
+   "\n"
+   (gen-extract-ifields (sfmt-iflds (insn-sfmt insn)) (sfmt-length (insn-sfmt insn)) "    " #f)
+   "\n"
+   ;; This should always be true if we get here, but check anyway...
+   (if (with-reg-usage?)
+       (string-list
+	(gen-register-usage-log (insn-iflds insn) "    ")
+	"\n"))
+   (/gen-record-args (insn-sfmt insn))
+   "\n"
+   (/gen-record-profile-args (insn-sfmt insn))
+   (gen-undef-field-macro (insn-sfmt insn))
+   "    return idesc;\n"
+   "  }\n\n"
+   )
+)
+
 ; For each format, return its extraction function.
 
-(define (/gen-all-extractors)
-  (logit 2 "Processing extractors ...\n")
-  (string-list-map /gen-extract-case (current-sfmt-list))
+(define (/gen-all-extractors-sfmt)
+  (logit 2 "Processing extractors (by sfmt)...\n")
+  (string-list-map /gen-extract-case-sfmt (current-sfmt-list))
+)
+
+(define (/gen-all-extractors-insn)
+  (logit 2 "Processing extractors (by insn)...\n")
+  (string-list
+   (string-list-map /gen-extract-case-sfmt
+		    (filter (lambda (sfmt)
+			      (eq? (obj:name sfmt) 'sfmt-empty))
+			    (current-sfmt-list)))
+   (string-list-map /gen-extract-case-insn (current-insn-list))
+   )
 )
 
 ; Generate top level decoder.
@@ -470,25 +513,24 @@ void
 
 (define (/gen-decode-fn insn-list initial-bitnums lsb0?)
 
-  ; Compute the initial DECODE-BITSIZE as the minimum of all insn lengths.
-  ; The caller of @prefix@_decode must fetch and pass exactly this number of bits
-  ; of the instruction.
-  ; ??? Make this a parameter later but only if necessary.
+  ;; Start decoding with the base insn word.
+  ;; The caller of @prefix@_decode must fetch and pass exactly this number of
+  ;; bits of the instruction.
 
-  (let ((decode-bitsize (apply min (map insn-base-mask-length insn-list))))
+  (let ((decode-word-offset 0)
+        (decode-word-bitsize (state-base-insn-bitsize)))
 
     ; Compute INITIAL-BITNUMS if not supplied.
-    ; 0 is passed for the start bit (it is independent of lsb0?)
     (if (null? initial-bitnums)
 	(set! initial-bitnums (decode-get-best-bits insn-list nil
-						    0 ; startbit
+						    decode-word-offset ; startbit
 						    8 ; max
-						    decode-bitsize
+						    decode-word-bitsize
 						    lsb0?)))
 
     ; All set.  gen-decoder does the hard part, we just print out the result. 
     (let ((decode-code (gen-decoder insn-list initial-bitnums
-				    decode-bitsize
+				    decode-word-bitsize
 				    "    " lsb0?
 				    (current-insn-lookup 'x-invalid #f)
 				    #f)))
@@ -521,8 +563,10 @@ const IDESC *
 
        (if (with-scache?)
            (string-list "\
-  /* The instruction has been decoded, now extract the fields.  */\n\n"
-            /gen-all-extractors)
+           /* The instruction has been decoded, now extract the fields.  */\n\n"
+           (if (with-reg-usage?)
+            /gen-all-extractors-insn
+            /gen-all-extractors-sfmt))
 	   ; Without the scache, extraction is defered until the semantic code.
 	   (string-list "\
   /* Extraction is defered until the semantic code.  */

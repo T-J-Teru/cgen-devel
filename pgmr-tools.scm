@@ -32,6 +32,8 @@
 
 ; Pretty print the instruction's opcode value, for debugging.
 ; INSN is an <insn> object.
+;
+; FIXME: Rewrite to print all masks, not just base-mask.
 
 (define (pgmr-pretty-print-insn-format insn)
 
@@ -85,10 +87,9 @@
 		   (number->string (ifld-length f))
 		   "\n"))
 
-  (let* ((iflds (sort-ifield-list (insn-iflds insn)
-				  (not (current-arch-insn-lsb0?))))
-	 (mask (compute-insn-base-mask iflds))
-	 (mask-length (compute-insn-base-mask-length iflds)))
+  (let* ((iflds (insn-sorted-iflds insn))
+	 (mask-lengths (compute-insn-mask-lengths iflds))
+	 (masks (compute-insn-masks iflds)))
 
     (display
      (string-append
@@ -103,15 +104,15 @@
       (number->string (apply + (map ifld-length iflds)))
       "\n"
       "Mask:  "
-      (dump-insn-mask mask mask-length)
+      (dump-insn-mask (car masks) (car mask-lengths))
       "\n"
       "Value: "
       (let ((value (apply +
 			  (map (lambda (fld)
-				 (ifld-value fld mask-length
+				 (ifld-value fld (car mask-lengths)
 					     (ifld-get-value fld)))
 			       (find ifld-constant? (ifields-base-ifields (insn-iflds insn)))))))
-	(dump-insn-value value mask mask-length))
+	(dump-insn-value value (car masks) (car mask-lengths)))
       ; TODO: Print value spaced according to fields.
       "\n"
       )))
@@ -154,6 +155,8 @@
 ; VALUE is either a single number of size base-insn-bitsize,
 ; or a list of numbers for variable length ISAs.
 ; LENGTH is the total length of VALUE in bits.
+;
+; FIXME: list VALUE not fully handled methinks
 
 (define (pgmr-lookup-insn length value)
   (arch-analyze-insns! CURRENT-ARCH
@@ -162,8 +165,8 @@
 
   ; Return a boolean indicating if BASE matches the base part of <insn> INSN.
   (define (match-base base insn)
-    (let ((mask (compute-insn-base-mask (insn-iflds insn)))
-	  (ivalue (insn-value insn)))
+    (let ((mask (insn-base-mask insn))
+	  (ivalue (insn-base-value insn)))
       ; return (value & mask) == ivalue
       (= (logand base mask) ivalue)))
 

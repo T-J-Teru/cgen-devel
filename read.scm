@@ -254,6 +254,7 @@
    current-cpu commands location))
 
 (define (reader-add-command! name comment attrs arg-spec handler)
+    (logit 4 (string-append "Adding command: " name "\n"))
   (reader-set-commands! CURRENT-READER
 			(acons name
 			       (make <command> name comment attrs
@@ -262,6 +263,7 @@
 )
 
 (define (/reader-lookup-command name)
+    (logit 4 (string-append "Looking up command: " name "\n"))
   (assq-ref (reader-commands CURRENT-READER) name)
 )
 
@@ -422,7 +424,7 @@
 				 (command-help command))
 		    (apply handler (cdr entry)))))
 
-	  (parse-error context "unknown entry type" entry))))
+	  (parse-error context (string-append "unknown entry type " (car entry) " in " entry)))))
 
   *UNSPECIFIED*
 )

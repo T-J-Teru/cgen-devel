@@ -624,10 +624,10 @@
 
     (if /rtx-canon-debug?
 	(begin
-	  (display (spaces (* 4 depth)))
-	  (display "expr-mode ")
-	  (display expr-mode)
-	  (newline)
+	  (logit 2 (spaces (* 4 depth)))
+	  (logit 2 "expr-mode ")
+	  (logit 2 expr-mode)
+	  (logit 2 "\n")
 	  (force-output)))
 
     (let loop ((env env)
@@ -639,18 +639,18 @@
 
 	(if /rtx-canon-debug?
 	    (begin
-	      (display (spaces (* 4 depth)))
+	      (logit 2 (spaces (* 4 depth)))
 	      (if (= op-num nr-operands)
-		  (display "end of operands")
+		  (logit 2 "end of operands")
 		  (begin
-		    (display "op-num ") (display op-num) (display ": ")
-		    (display (rtx-dump (vector-ref operands op-num)))
-		    (display ", ")
-		    (display (if varargs? (car arg-types) (caar arg-types)))
-		    (display ", ")
-		    (display (if varargs? arg-modes (car arg-modes)))
+		    (logit 2 "op-num ") (logit 2 op-num) (logit 2 ": ")
+		    (logit 2 (rtx-dump (vector-ref operands op-num)))
+		    (logit 2 ", ")
+		    (logit 2 (if varargs? (car arg-types) (caar arg-types)))
+		    (logit 2 ", ")
+		    (logit 2 (if varargs? arg-modes (car arg-modes)))
 		    ))
-	      (newline)
+	      (logit 2 "\n")
 	      (force-output)))
 
 	(cond ((= op-num nr-operands)
@@ -664,9 +664,9 @@
 			  (lambda (arg-num)
 			    (if /rtx-canon-debug?
 				(begin
-				  (display (spaces (* 4 depth)))
-				  (display "Computing expr mode from arguments.")
-				  (newline)))
+				  (logit 2 (spaces (* 4 depth)))
+				  (logit 2 "Computing expr mode from arguments.")
+				  (logit 2 "\n")))
 			    (let* ((expr-to-match 
 				    (case func
 				      ((cond case)
@@ -705,9 +705,9 @@
 			       (else
 				(if /rtx-canon-debug?
 				    (begin
-				      (display (spaces (* 4 depth)))
-				      (display "Computing expr mode from containing expression.")
-				      (newline)))
+				      (logit 2 (spaces (* 4 depth)))
+				      (logit 2 "Computing expr mode from containing expression.")
+				      (logit 2 "\n")))
 				(if (or (eq? requested-mode-name 'DFLT)
 					(rtx-result-mode rtx-obj))
 				    (/rtx-canon-error cstate
@@ -1175,15 +1175,15 @@
 
     (if /rtx-canon-debug?
 	(begin
-	  (display (spaces (* 4 depth)))
-	  (display "Traversing operands of: ")
-	  (display (rtx-dump (cons func args)))
-	  (newline)
-	  (display (spaces (* 4 depth)))
-	  (display "Requested mode: ")
-	  (display requested-mode-name)
-	  (newline)
-	  (display (spaces (* 4 depth)))
+	  (logit 2 (spaces (* 4 depth)))
+	  (logit 2 "Traversing operands of: ")
+	  (logit 2 (rtx-dump (cons func args)))
+	  (logit 2 "\n")
+	  (logit 2 (spaces (* 4 depth)))
+	  (logit 2 "Requested mode: ")
+	  (logit 2 requested-mode-name)
+	  (logit 2 "\n")
+	  (logit 2 (spaces (* 4 depth)))
 	  (rtx-env-stack-dump env)
 	  (force-output)))
 
@@ -1205,13 +1205,13 @@
 (define (/rtx-canon expr expected mode parent-expr op-num cstate env depth)
   (if /rtx-canon-debug?
       (begin
-	(display (spaces (* 4 depth)))
-	(display "Canonicalizing (")
-	(display mode)
-	(display "): ")
-	(display (rtx-dump expr))
-	(newline)
-	(display (spaces (* 4 depth)))
+	(logit 2 (spaces (* 4 depth)))
+	(logit 2 "Canonicalizing (")
+	(logit 2 mode)
+	(logit 2 "): ")
+	(logit 2 (rtx-dump expr))
+	(logit 2 "\n")
+	(logit 2 (spaces (* 4 depth)))
 	(rtx-env-stack-dump env)
 	(force-output)
 	))
@@ -1284,10 +1284,10 @@
 
     (if /rtx-canon-debug?
 	(begin
-	  (display (spaces (* 4 depth)))
-	  (display "Result: ")
-	  (display (rtx-dump result))
-	  (newline)
+	  (logit 2 (spaces (* 4 depth)))
+	  (logit 2 "Result: ")
+	  (logit 2 (rtx-dump result))
+	  (logit 2 "\n")
 	  (force-output)
 	  ))
 
@@ -1342,7 +1342,7 @@
 
 ;; Set to #t to debug rtx traversal.
 
-(define /rtx-traverse-debug? #f)
+(define /rtx-traverse-debug? #t)
 
 ; Container to record the current state of traversal.
 ; This is initialized before traversal, and modified (in a copy) as the
@@ -1655,10 +1655,9 @@
 (define (/rtx-traverse-operands rtx-obj expr tstate appstuff)
   (if /rtx-traverse-debug?
       (begin
-	(display (spaces (* 4 (tstate-depth tstate))))
-	(display "Traversing operands of: ")
-	(display (rtx-dump expr))
-	(newline)
+	(logit 2 (spaces (* 4 (tstate-depth tstate)))
+               "Traversing operands of: "
+               (rtx-dump expr) "\n")
 	(rtx-env-stack-dump (tstate-env-stack tstate))
 	(force-output)))
 
@@ -1672,18 +1671,19 @@
 
       (if /rtx-traverse-debug?
 	  (begin
-	    (display (spaces (* 4 (tstate-depth tstate))))
+	    (logit 2 (spaces (* 4 (tstate-depth tstate))))
 	    (if (null? operands)
-		(display "end of operands")
+		(logit 2 "end of operands")
 		(begin
-		  (display "op-num ") (display op-num) (display ": ")
-		  (display (rtx-dump (car operands)))
-		  (display ", ")
-		  (display (if varargs? (car arg-types) (caar arg-types)))
-		  (display ", ")
-		  (display (if varargs? arg-modes (car arg-modes)))
+		  (logit 2 "op-num ") (logit 2 op-num) (logit 2 ": ")
+                  (logit 2 "(" (rtx-num rtx-obj) ") ")
+		  (logit 2 (rtx-dump (car operands)))
+		  (logit 2 ", ")
+		  (logit 2 (if varargs? (car arg-types) (caar arg-types)))
+		  (logit 2 ", ")
+		  (logit 2 (if varargs? arg-modes (car arg-modes)))
 		  ))
-	    (newline)
+	    (logit 2 "\n")
 	    (force-output)))
 
       (cond ((null? operands)
@@ -1791,19 +1791,15 @@
 (define (/rtx-traverse expr expected parent-expr op-pos tstate appstuff)
   (if /rtx-traverse-debug?
       (begin
-	(display (spaces (* 4 (tstate-depth tstate))))
-	(display "Traversing expr: ")
-	(display expr)
-	(newline)
-	(display (spaces (* 4 (tstate-depth tstate))))
-	(display "-expected:       ")
-	(display expected)
-	(newline)
-	(display (spaces (* 4 (tstate-depth tstate))))
-	(display "-conditional:    ")
-	(display (tstate-cond? tstate))
-	(newline)
-	(force-output)
+	(logit 2 (spaces (* 4 (tstate-depth tstate)))
+               "Traversing expr: "
+               expr "\n")
+	(logit 2 (spaces (* 4 (tstate-depth tstate)))
+               "-expected:       "
+               expected "\n")
+	(logit 2 (spaces (* 4 (tstate-depth tstate)))
+               "-conditional:    "
+               (tstate-cond? tstate) "\n")
 	))
 
   ;; FIXME: error checking here should be deleteable.
@@ -1907,17 +1903,17 @@
   (rtx-traverse
    #f #f expr
    (lambda (rtx-obj expr parent-expr op-pos tstate appstuff)
-     (display "-expr:    ")
-     (display (string-append "rtx=" (obj:str-name rtx-obj)))
-     (display " expr=")
-     (display expr)
-     (display " parent=")
-     (display parent-expr)
-     (display " op-pos=")
-     (display op-pos)
-     (display " cond?=")
-     (display (tstate-cond? tstate))
-     (newline)
+     (logit 2 "-expr:    ")
+     (logit 2 (string-append "rtx=" (obj:str-name rtx-obj)))
+     (logit 2 " expr=")
+     (logit 2 expr)
+     (logit 2 " parent=")
+     (logit 2 parent-expr)
+     (logit 2 " op-pos=")
+     (logit 2 op-pos)
+     (logit 2 " cond?=")
+     (logit 2 (tstate-cond? tstate))
+     (logit 2 "\n")
      #f)
    #f
    )
@@ -2143,11 +2139,11 @@
 (define (rtx-eval-with-estate expr mode estate)
   (if /rtx-eval-debug?
       (begin
-	(display "Evaluating expr with mode ")
-	(display (if (symbol? mode) mode (obj:name mode)))
-	(newline)
-	(display (rtx-dump expr))
-	(newline)
+	(logit 2 "Evaluating expr with mode ")
+	(logit 2 (if (symbol? mode) mode (obj:name mode)))
+	(logit 2 "\n")
+	(logit 2 (rtx-dump expr))
+	(logit 2 "\n")
 	(rtx-env-stack-dump (estate-env-stack estate))
 	))
 

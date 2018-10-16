@@ -61,6 +61,7 @@ static const CGEN_ATTR_ENTRY bool_attr[] =
    (gen-attr-table-defn "hardware" (current-hw-attr-list))
    (gen-attr-table-defn "operand" (current-op-attr-list))
    (gen-attr-table-defn "insn" (current-insn-attr-list))
+   (gen-attr-table-defn "mach" (current-mach-attr-list))
    )
 )
 

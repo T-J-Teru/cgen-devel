@@ -1407,10 +1407,10 @@
 ; Error generation
 
 (define-fn error (*estate* options mode message)
-  (let ((c-call (s-c-call *estate* mode "cgen_rtx_error"
-			  (string-append "\""
-					 (backslash "\"" message)
-					 "\""))))
+  (let ((c-call (s-c-raw-call *estate* mode "cgen_rtx_error"
+                              (string-append "\""
+                                             (backslash "\"" message)
+                                             "\""))))
     (if (mode:eq? mode VOID)
 	c-call
 	(cx:make mode (string-append "(" (cx:c c-call) ", 0)"))))
@@ -1428,6 +1428,8 @@
 
 (define-fn ifield (*estate* options mode ifld-name)
   (if (estate-ifield-var? *estate*)
+      ;; APB: I used to do more here, looking up the mode name.  but this
+      ;; code changed, so not sure if my change was still needed.
       (cx:make mode (gen-c-symbol ifld-name))
       (cx:make mode (string-append "FLD (" (gen-c-symbol ifld-name) ")")))
 ;  (let ((f (current-ifld-lookup ifld-name)))

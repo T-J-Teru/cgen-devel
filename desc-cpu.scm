@@ -58,6 +58,9 @@ static const CGEN_ISA @arch@_cgen_isa_table[] = {
 (define (/gen-mach-table-defns)
   (logit 2 "Generating machine table defns ...\n")
 
+  (let* ((all-attrs (current-mach-attr-list))
+	 (num-non-bools (attr-count-non-bools all-attrs)))
+  
   (string-list
    "\
 /* Machine variants.  */
@@ -71,14 +74,19 @@ static const CGEN_MACH @arch@_cgen_mach_table[] = {
 				      "\"" (obj:str-name mach) "\", "
 				      "\"" (mach-bfd-name mach) "\", "
 				      (mach-enum mach) ", "
-				      (number->string (cpu-insn-chunk-bitsize (mach-cpu mach)))
+				      (number->string (cpu-insn-chunk-bitsize (mach-cpu mach))) ", "
+
+                                      (gen-obj-attr-defn 'mach mach all-attrs
+                                                         num-non-bools 
+                                                         gen-A-attr-mask)
+
 				      " },\n")))
 		    (current-mach-list))
    "\
-  { 0, 0, 0, 0 }
+  { 0, 0, 0, 0, " (gen-obj-attr-end-defn all-attrs num-non-bools) "}
 };
 \n"
-   )
+   ))
 )
 
 ; Attribute support code.
@@ -93,6 +101,7 @@ static const CGEN_MACH @arch@_cgen_mach_table[] = {
    "extern const CGEN_ATTR_TABLE @arch@_cgen_ifield_attr_table[];\n"
    "extern const CGEN_ATTR_TABLE @arch@_cgen_operand_attr_table[];\n"
    "extern const CGEN_ATTR_TABLE @arch@_cgen_insn_attr_table[];\n"
+   "extern const CGEN_ATTR_TABLE @arch@_cgen_mach_attr_table[];\n"   
    "\n"
    )
 )
@@ -498,6 +507,17 @@ const CGEN_OPERAND @arch@_cgen_operand_table[] =
    )
 )
 
+; Return C code to declare various mach bits.
+
+(define (gen-mach-decls)
+  (logit 2 "Generating mach decls ...\n")
+  (string-list
+   "/* Mach attribute indices.	*/\n\n"
+   (gen-attr-enum-decl "cgen_mach" (current-mach-attr-list))
+   (gen-attr-accessors "cgen_mach" (current-mach-attr-list))
+   )
+)
+
 ; Generate an insn table entry for INSN.
 ; ALL-ATTRS is a list of all instruction attributes.
 ; NUM-NON-BOOLS is the number of non-boolean insn attributes.
@@ -606,6 +626,7 @@ lookup_mach_via_bfd_name (const CGEN_MACH *table, const char *name)
 	return table;
       ++table;
     }
+  fprintf (stderr, \"Unable to find mach for name: %s\\n\", name);
   abort ();
 }
 
@@ -649,7 +670,7 @@ static void
 build_operand_table (CGEN_CPU_TABLE *cd)
 {
   int i;
-  int machs = cd->machs;
+  /*int machs = cd->machs;*/
   const CGEN_OPERAND *init = & @arch@_cgen_operand_table[0];
   /* MAX_OPERANDS is only an upper bound on the number of selected entries.
      However each entry is indexed by it's enum so there can be holes in
@@ -661,8 +682,14 @@ build_operand_table (CGEN_CPU_TABLE *cd)
   memset (selected, 0, MAX_OPERANDS * sizeof (CGEN_OPERAND *));
   /* ??? For now we just use mach to determine which ones we want.  */
   for (i = 0; init[i].name != NULL; ++i)
+    /* APB: HACK: I've disabled this check so we get every operand for
+       all machine types.  There's never any overlap so there should be
+       no risk in this.  This saves having to mark all the operands as
+       being available for all machines.  */
+    /*
     if (CGEN_OPERAND_ATTR_VALUE (&init[i], CGEN_OPERAND_MACH)
 	& machs)
+    */
       selected[init[i].type] = &init[i];
   cd->operand_table.entries = selected;
   cd->operand_table.num_entries = MAX_OPERANDS;
@@ -720,7 +747,12 @@ static void
 	else if (isa->default_insn_bitsize == cd->default_insn_bitsize)
 	  ; /* This is ok.  */
 	else
-	  cd->default_insn_bitsize = CGEN_SIZE_UNKNOWN;
+	  {
+	    /* When we have multiple ISAs with different instruction
+               sizes then select the smallest as the default.  */
+	    if (isa->default_insn_bitsize < cd->default_insn_bitsize)
+	      cd->default_insn_bitsize = isa->default_insn_bitsize;
+	  }
 
 	/* Base insn sizes of all selected isas must be equal
 	   or we set the result to 0, meaning \"unknown\".  */
@@ -991,6 +1023,7 @@ init_tables (void)
    gen-hw-decls
    gen-operand-decls
    gen-insn-decls
+   gen-mach-decls
    "/* cgen.h uses things we just defined.  */\n"
    "#include \"opcode/cgen.h\"\n\n"
    "extern const struct cgen_ifld @arch@_cgen_ifld_table[];\n\n"

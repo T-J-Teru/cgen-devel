@@ -235,7 +235,7 @@
 	 (num-insns (length masks)))
     ; Compute the 1- and 0-population vectors
     (for-each (lambda (mask len value)
-		(logit 5 " population count mask=" (number->hex mask) " len=" len "\n")
+		(logit 5 " population count mask=0x" (number->hex mask) " len=" len "\n")
 		(for-each (lambda (bitno)
 			    (let ((lsb-bitno (if lsb0? bitno (- len bitno 1))))
 			      ; ignore this bit if it's not set in the mask
@@ -395,9 +395,15 @@
 ; until we've processed all bits up to startbit + decode-bitsize.
 
 (define (decode-get-best-bits insn-list already-used startbit max decode-bitsize lsb0?)
-  (let* ((raw-population (/distinguishing-bit-population (map insn-base-mask insn-list)
-							 (map insn-base-mask-length insn-list)
-							 (map insn-value insn-list)
+  (let* ((raw-population (/distinguishing-bit-population (map (lambda (insn)
+                                                                (insn-mask-at-offset insn startbit))
+                                                              insn-list)
+                                                         (map (lambda (insn)
+                                                                (insn-mask-length-at-offset insn startbit))
+                                                              insn-list)
+                                                         (map (lambda (insn)
+                                                                (insn-value-at-offset insn startbit))
+                                                              insn-list)
 							 lsb0?))
 	 ;; (undecoded (if lsb0?
 	 ;; 		(/range2 startbit (+ startbit decode-bitsize))
@@ -471,17 +477,36 @@
 ; the those bits of INSN is #b1100xx (where 'x' indicates a non-constant
 ; part), then the result is (#b110000 #b110001 #b110010 #b110011).
 
-(define (/opcode-slots insn bitnums lsb0?)
-  (let ((opcode (insn-value insn)) ;; FIXME: unused, overridden below
-	(insn-len (insn-base-mask-length insn))
-	(decode-len (length bitnums)))
-    (let* ((opcode (/get-subopcode-value (insn-value insn) insn-len decode-len bitnums 0 lsb0?))
-	   (opcode-mask (/get-subopcode-value (insn-base-mask insn) insn-len decode-len bitnums 1 lsb0?))
+;; (define (/opcode-slots insn bitnums lsb0?)
+;;   (let ((opcode (insn-value insn)) ;; FIXME: unused, overridden below
+;; 	(insn-len (insn-base-mask-length insn))
+;; 	(decode-len (length bitnums)))
+;;     (let* ((opcode (/get-subopcode-value (insn-value insn) insn-len decode-len bitnums 0 lsb0?))
+;; 	   (opcode-mask (/get-subopcode-value (insn-base-mask insn) insn-len decode-len bitnums 1 lsb0?))
+;; 	   (indices (missing-bit-indices opcode-mask (- (integer-expt 2 decode-len) 1))))
+;;       (logit 3 "insn =" (obj:name insn)
+;; 	     " insn-value=" (number->hex (insn-value insn))
+;; 	     " insn-base-mask=" (number->hex (insn-base-mask insn))
+;; 	     " insn-len=" insn-len
+;; 	     " decode-len=" decode-len
+;; 	     " opcode=" (number->hex opcode)
+;; 	     " opcode-mask=" (number->hex opcode-mask)
+;; 	     " indices=" indices "\n")
+;;       (map (lambda (index) (+ opcode index)) indices)))
+;; )
+
+(define (/opcode-slots insn bitnums word-offset word-bitsize lsb0?)
+  (let ((mask (insn-mask-at-offset insn word-offset))
+       (value (insn-value-at-offset insn word-offset))
+       (decode-len (length bitnums)))
+    (let* ((opcode (/get-subopcode-value value word-bitsize decode-len bitnums 0 lsb0?))
+           (opcode-mask (/get-subopcode-value mask word-bitsize decode-len bitnums 1 lsb0?))
 	   (indices (missing-bit-indices opcode-mask (- (integer-expt 2 decode-len) 1))))
       (logit 3 "insn =" (obj:name insn)
-	     " insn-value=" (number->hex (insn-value insn))
-	     " insn-base-mask=" (number->hex (insn-base-mask insn))
-	     " insn-len=" insn-len
+             " word-offset=" word-offset
+             " word-bitsize=" word-bitsize
+             " insn-value=" value
+             " insn-mask=" mask
 	     " decode-len=" decode-len
 	     " opcode=" (number->hex opcode)
 	     " opcode-mask=" (number->hex opcode-mask)
@@ -491,7 +516,8 @@
 
 ; Subroutine of /build-slots.
 ; Fill slot in INSN-VEC that INSN goes into.
-; BITNUMS is the list of opcode bits.
+; BITNUMS is the list of opcode bits, relative to the word under consideration.
+; WORD-OFFSET, WORD-BITSIZE specify the word under consideration.
 ; LSB0? is non-#f if bit number 0 is the least significant bit.
 ;
 ; Example: If BITNUMS is (0 1 2 3 4 5) and the constant (i.e. opcode) part of
@@ -499,10 +525,22 @@
 ; part), then elements 48 49 50 51 of INSN-VEC are cons'd with INSN.
 ; Each "slot" is a list of matching instructions.
 
-(define (/fill-slot! insn-vec insn bitnums lsb0?)
-  (logit 3 "Filling slots for " (obj:str-name insn)
-	 ", bitnums " bitnums "\n")
-  (let ((slot-nums (/opcode-slots insn bitnums lsb0?)))
+;; (define (/fill-slot! insn-vec insn bitnums lsb0?)
+;;   (logit 3 "Filling slots for " (obj:str-name insn)
+;; 	 ", bitnums " bitnums "\n")
+;;   (let ((slot-nums (/opcode-slots insn bitnums lsb0?)))
+;;     ;(display (list "Filling slot(s)" slot-nums "...")) (newline)
+;;     (for-each (lambda (slot-num)
+;; 		(vector-set! insn-vec slot-num
+;; 			     (cons insn (vector-ref insn-vec slot-num))))
+;; 	      slot-nums)
+;;     *UNSPECIFIED*
+;;     )
+;;   )
+
+(define (/fill-slot! insn-vec insn bitnums word-offset word-bitsize lsb0?)
+  ;(display (string-append "fill-slot!: " (obj:str-name insn) " ")) (display bitnums) (newline)
+  (let ((slot-nums (/opcode-slots insn bitnums word-offset word-bitsize lsb0?)))
     ;(display (list "Filling slot(s)" slot-nums "...")) (newline)
     (for-each (lambda (slot-num)
 		(vector-set! insn-vec slot-num
@@ -513,16 +551,28 @@
 )
 
 ; Given a list of constant bitnums (ones that are predominantly, though perhaps
-; not always, in the opcode), record each insn in INSN-LIST in the proper slot.
+; not always, in the opcode) in the word specified by WORD-OFFSET,WORD-BITSIZE,
+; return a vector with each insn in INSN-LIST in the proper slot.
 ; LSB0? is non-#f if bit number 0 is the least significant bit.
 ; The result is a vector of insn lists.  Each slot is a list of insns
 ; that go in that slot.
+;
+; NOTE: BITNUMS is for the word under consideration.  E.g. If an insn has
+; two 16 bit words, when processing the second word BITNUMS has values 0-15.
 
-(define (/build-slots insn-list bitnums lsb0?)
+;; (define (/build-slots insn-list bitnums lsb0?)
+;;   (let ((result (make-vector (integer-expt 2 (length bitnums)) nil)))
+;;     ; Loop over each element, filling RESULT.
+;;     (for-each (lambda (insn)
+;; 		(/fill-slot! result insn bitnums lsb0?))
+;; 	      insn-list)
+;;     result)
+;; )
+(define (/build-slots insn-list bitnums word-offset word-bitsize lsb0?)
   (let ((result (make-vector (integer-expt 2 (length bitnums)) nil)))
     ; Loop over each element, filling RESULT.
     (for-each (lambda (insn)
-		(/fill-slot! result insn bitnums lsb0?))
+                (/fill-slot! result insn bitnums word-offset word-bitsize lsb0?))
 	      insn-list)
     result)
 )
@@ -546,9 +596,12 @@
 ; INSN-VEC is a vector of slots where each slot is a list of instructions that
 ; map to that slot (opcode value).  If a slot is nil, no insn has that opcode
 ; value so the decoder marks it as being invalid.
-; STARTBIT is the bit offset of the instruction value that C variable `insn'
-; holds (note that this is independent of LSB0?).
-; DECODE-BITSIZE is the number of bits of the insn that `insn' holds.
+; STARTBIT,DECODE-BITSIZE specify the current word being used to decode insns.
+; We assume all bits of all previous words have been completely used.
+; If there are ambiguities after fully using the current word, we move to the
+; next word.
+; NOTE: We (currently) assume all insns in any one slot have the same word
+; sizes up to the point where they're fully distinguished.
 ; INDEX-LIST is a list of pairs: list of bitnums, table entry number.
 ; LSB0? is non-#f if bit number 0 is the least significant bit.
 ; INVALID-INSN is an <insn> object to use for invalid insns.
@@ -583,6 +636,8 @@
      (else
       (logit 3 "Building subtable at index " (number->string index)
 	     ", decode-bitsize = " (number->string decode-bitsize)
+             ", word-offset = " (number->string startbit)
+             ", word-bitsize = " (number->string decode-bitsize)
 	     ", indices used thus far:"
 	     (string-map (lambda (i) (string-append " " (number->string i)))
 			 (apply append (map car index-list)))
@@ -606,17 +661,38 @@
 	      ; iterate, but rather unlikely.
 	      ; The calculation of the new startbit, decode-bitsize will
 	      ; undoubtedly need refinement.
-	      (set! startbit (+ startbit decode-bitsize))
-	      (set! decode-bitsize
-		    (min decode-bitsize
-			 (- (apply min (map insn-length slot))
-			    startbit)))
-	      (set! bitnums (decode-get-best-bits slot
-						  ;nil ; FIXME: what to put here?
-						  (apply append (map car index-list))
-						  startbit 4
-						  decode-bitsize lsb0?))))
+              (logit 3 "Reading in more bits might help...\n")
+              (logit 3 "  decode-bitsize = " decode-bitsize "\n")
+              (logit 3 "  slot = "
+                     (string-drop1 ; drop leading comma
+                      (string-map (lambda (insn)
+                                    (string-append ", " (obj:str-name insn) "(len=" (insn-length insn) ")"))
+                                  slot)) "\n")
 
+	      (set! startbit (+ startbit decode-bitsize))
+              
+              ;; If we've used up all of one insn, there's a definite ambiguity.
+              (if (any-true? (map (lambda (insn)
+                                    (= startbit (insn-length insn)))
+                                  slot))
+                  #t ; leave bitnums = nil.
+                  (begin
+                    (set! decode-bitsize (insn-mask-length-at-offset (car slot) startbit))
+                    ;; We (currently) require all insns have the same word sizes up to
+                    ;; the point where they're distinguished.
+                    (if (not (all-true? (map (lambda (insn)
+                                               (= decode-bitsize (insn-mask-length-at-offset insn startbit)))
+                                             slot)))
+                        (message "WARNING: Decoder detected word mismatch.\n"
+                                 "All words up to and including point where insns are distinguished\n"
+                                 "must have same sizes.\n"
+                                 "Insns:" (map (lambda (insn)
+                                                 (string-append " " (obj:str-name insn)))
+                                               slot)
+                                 "\n"))
+                    (set! bitnums (decode-get-best-bits slot nil
+                                                        startbit 4 decode-bitsize lsb0?))))))
+        (logit 3 "So, lets see what the state is now...\n")
 	; If bitnums is still nil there is an ambiguity.
 	(if (null? bitnums)
 	    (begin
@@ -638,7 +714,7 @@
 			(message "WARNING: Decoder ambiguity detected: "
 				 (string-drop1 ; drop leading comma
 				  (string-map (lambda (insn)
-						(string-append ", " (obj:str-name insn)))
+						(string-append ", " (obj:str-name insn) "(len=" (insn-length insn) ")"))
 					      slot))
 				 "\n"))
 			; Things aren't entirely hopeless.  We've warned about
@@ -678,7 +754,7 @@
 	    ; There is no ambiguity so generate the subtable.
 	    ; Need to build `subtable' separately because we
 	    ; may be appending to /decode-subtables recursively.
-	    (let* ((insn-vec (/build-slots slot bitnums lsb0?))
+	    (let* ((insn-vec (/build-slots slot bitnums startbit decode-bitsize lsb0?))
 		   (subtable
 		    (/build-decode-table-guts insn-vec bitnums startbit
 					      decode-bitsize index-list lsb0?
@@ -734,8 +810,9 @@
 ; Return a table that efficiently decodes INSN-LIST.
 ; The table is a "dtable-guts" data structure, see dtable-guts-make.
 ;
-; BITNUMS is the set of bits to initially key off of.
-; DECODE-BITSIZE is the number of bits of the instruction that `insn' holds.
+; BITNUMS is the set of bits in the base insn word to initially key off of.
+; DECODE-BITSIZE is the number of bits of the base insn word.
+; Basically it's base-insn-size.
 ; LSB0? is non-#f if bit number 0 is the least significant bit.
 ; INVALID-INSN is an <insn> object representing the `invalid' insn (for
 ; instructions values that don't decode to any entry in INSN-LIST).
@@ -752,7 +829,7 @@
   ; that recorded the necessary bits (insn, ifield-list, remaining
   ; ifield-assertions).
 
-  (let ((insn-vec (/build-slots insn-list bitnums lsb0?)))
+  (let ((insn-vec (/build-slots insn-list bitnums 0 decode-bitsize lsb0?)))
     (let ((table-guts (/build-decode-table-guts insn-vec bitnums
 						0 decode-bitsize
 						nil lsb0?

@@ -125,10 +125,34 @@
 (method-make!
  <ifield> 'set-field-value!
  (lambda (self new-val)
-   (elm-set! self 'value new-val))
+   (if (not (or (number? new-val)
+                (operand? new-val)))
+       (error "Setting an ifield value to neither number or operand: " new-val)
+       (elm-set! self 'value new-val)))
 )
 (define (ifld-set-value! self new-val)
   (send self 'set-field-value! new-val)
+  )
+(method-make!
+ <ifield> 'clear-field-value!
+ (lambda (self)
+   (elm-set! self 'value #f))
+)
+(define (ifld-clear-value! self)
+  (send self 'clear-field-value!)
+)
+(method-make!
+ <ifield> 'get-field-value-type
+ (lambda (self)
+   (let ((value (ifld-get-value self)))
+     (cond ((number? value) 
+	    (string-append "number: " (number->string value)))
+	   ((operand? value) 
+	    (string-append "operand: " (obj:name value)))
+	   (else "unknown"))))
+)
+(define (ifld-get-value-type self)
+  (send self 'get-field-value-type)
 )
 
 ; Return a boolean indicating if X is an <ifield>.
@@ -170,6 +194,12 @@
 ;	   (not (has-attr? f 'RESERVED))))
 )
 
+;; APB: Legacy, just use the above instead.
+(define (ifld-constant-value f)
+  (assert (ifld-constant? f))
+  (ifld-get-value f))
+          
+
 ; Return a boolean indicating if ifield F is signed.
 
 (define (ifld-signed? f)
@@ -179,7 +209,7 @@
 ; Return a boolean indicating if ifield F is an operand.
 ; FIXME: Should check for operand? or some such.
 
-(define (ifld-operand? f) (not (number? (ifld-get-value f))))
+(define (ifld-operand? f) (operand? (ifld-get-value f)))
 
 ; Return known value table for rtx-simplify of <ifield> list ifld-list.
 
@@ -253,6 +283,8 @@
 	  (word-offset (bitrange-word-offset bitrange))
 	  (word-length (or (and (= word-offset 0) base-len)
 			   recorded-word-length)))
+     (if (not value)
+         (set! value (ifld-get-value self)))
      (word-value (ifld-start self)
 		 (bitrange-length bitrange)
 		 word-length
@@ -337,6 +369,7 @@
 ; VALUE is either ... ???
 
 (define (ifld-new-value f value)
+  (assert (ifield? f))
   (let ((new-f (object-copy f)))
     (ifld-set-value! new-f value)
     new-f)
@@ -482,9 +515,13 @@
 	  (let ((bitrange
 		 (if word-offset
 
-		     ; CISC-like. Easy. Everything must be specified.
-		     (make <bitrange>
-		       word-offset start flength word-length lsb0?)
+                     (begin
+                       (logit 3 "Creating bitrange, word-offset "
+                              word-offset ", world length "
+                              word-length "\n")
+                       ;; CISC-like. Easy. Everything must be specified.
+                       (make <bitrange>
+                         word-offset start flength word-length lsb0?))
 
 		     ; RISC-like. Hard. Have to make best choice of start,
 		     ; flength. This doesn't have to be perfect, just easily
@@ -640,6 +677,7 @@
 (define (/ifld-parse-encode-decode context which value)
   (if value
       (begin
+        (logit 4 "Parsing spec: " value "\n")
 	(if (or (not (list? value))
 		(not (= (length value) 2))
 		(not (list? (car value)))
@@ -713,7 +751,7 @@ Define an instruction multi-field, name/value pair list version.
 		       "\
 Define an instruction multi-field, all arguments specified.
 "
-		       nil '(name comment attrs mode subflds insert extract)
+		       nil '(name comment attrs mode subflds insert extract encode decode)
 		       define-full-multi-ifield)
 
   *UNSPECIFIED*
@@ -731,6 +769,8 @@ Define an instruction multi-field, all arguments specified.
 		insert
 		; rtl to set self from SUBFIELDS
 		extract
+                ; sorted version of subfields, lazily cached
+                (sorted-subfields . #f)
 		)
 	      nil)
 )
@@ -818,8 +858,8 @@ Define an instruction multi-field, all arguments specified.
 (method-make!
  <multi-ifield> 'field-extract
  (lambda (self insn value)
-   (let* ((subflds (sort-ifield-list (elm-get self 'subfields)
-				     (not (ifld-lsb0? self))))
+   (let* ((subflds (multi-ifld-sorted-subfields self
+                                                (not (ifld-lsb0? self))))
 	  (subvals (map (lambda (subfld)
 			  (ifld-extract subfld insn value))
 			subflds))
@@ -857,6 +897,21 @@ Define an instruction multi-field, all arguments specified.
 		  ")"))
 )
 
+
+
+; Return list of sorted subfields.
+; The result is cached to speed up the next call.
+
+(define (multi-ifld-sorted-subfields mf lsb0?)
+  (if (elm-get mf 'sorted-subfields)
+      (elm-get mf 'sorted-subfields)
+      (let ((ssf (sort-ifield-list (elm-get mf 'subfields)
+                                   ;; lsb0?
+                                   )))
+       (elm-set! mf 'sorted-subfields ssf)
+       ssf))
+)
+
 ; Multi-ifield parsing.
 
 ; Subroutine of /multi-ifield-parse to build the default insert expression.
@@ -1009,10 +1064,10 @@ Define an instruction multi-field, all arguments specified.
 ; Define an instruction multi-field object, all arguments specified.
 ; FIXME: encode/decode arguments are missing.
 
-(define (define-full-multi-ifield name comment attrs mode subflds insert extract)
+(define (define-full-multi-ifield name comment attrs mode subflds insert extract encode decode)
   (let ((f (/multi-ifield-parse (make-current-context "define-full-multi-ifield")
 				name comment attrs
-				mode subflds insert extract #f #f)))
+				mode subflds insert extract encode decode)))
     (current-ifld-add! f)
     f)
 )
@@ -1130,6 +1185,35 @@ Define an instruction multi-field, all arguments specified.
 
 ; Misc. utilities.
 
+; Traverse the ifield to collect all real (non-derived and non-multi) ifields
+; used in it.
+
+(define (ifld-real-ifields ifld)
+  (cond ((derived-ifield? ifld) (collect (lambda (subfield)
+                                           (ifld-real-ifields subfield))
+                                         (derived-ifield-subfields ifld)))
+        ((multi-ifield? ifld) (collect (lambda (subfield)
+                                         (ifld-real-ifields subfield))
+                                       (multi-ifld-subfields ifld)))
+        (else (list ifld)))
+)
+
+; Subroutine of sort-ifield-list.
+; Return the starting bit number to use to sort F.
+; Fields are always sorted so that the field with the MSB of the first word
+; of the insn comes first.
+
+(define (/ifld-start-bit-for-sort f)
+  (if (multi-ifield? f)
+      (/ifld-start-bit-for-sort (car (multi-ifld-sorted-subfields
+                                      f
+                                      (not (ifld-lsb0? f)))))
+      (+ (ifld-word-offset f)
+	(if (ifld-lsb0? f)
+	    (- (ifld-word-length f) 1 (ifld-start f))
+	    (ifld-start f))))
+)
+
 ; Sort a list of fields (sorted by the starting bit number).
 ; This must be carefully defined to pass through Hobbit.
 ; (define foo (if x bar baz)) is ok.
@@ -1141,23 +1225,55 @@ Define an instruction multi-field, all arguments specified.
 
 (define sort-ifield-list
   (if (and (defined? 'cgh-qsort) (defined? 'cgh-qsort-int-cmp))
-      (lambda (fld-list up?)
+      (lambda (fld-list)
 	(cgh-qsort fld-list
-		   (if up?
-		       (lambda (a b)
-			 (cgh-qsort-int-cmp (ifld-start a)
-					    (ifld-start b)))
-		       (lambda (a b)
-			 (- (cgh-qsort-int-cmp (ifld-start a)
-					       (ifld-start b)))))))
-      (lambda (fld-list up?)
+                   (lambda (a b)
+                     (cgh-qsort-int-cmp (/ifld-start-bit-for-sort a)
+                                        (/ifld-start-bit-for-sort b)))))
+      (lambda (fld-list)
 	(sort fld-list
-	      (if up?
-		  (lambda (a b) (< (ifld-start a)
-				   (ifld-start b)))
-		  (lambda (a b) (> (ifld-start a)
-				   (ifld-start b)))))))
+              (lambda (a b)
+                (< (/ifld-start-bit-for-sort a)
+                   (/ifld-start-bit-for-sort b))))))
 )
+
+;; TODO: This is the original version of the sort routine.
+;; (define sort-ifield-list
+;;   (if (and (defined? 'cgh-qsort) (defined? 'cgh-qsort-int-cmp))
+;;       (lambda (fld-list up?)
+;; 	(cgh-qsort fld-list
+;; 		   (if up?
+;; 		       (lambda (a b)
+;; 			 (cgh-qsort-int-cmp (ifld-start a)
+;; 					    (ifld-start b)))
+;; 		       (lambda (a b)
+;; 			 (- (cgh-qsort-int-cmp (ifld-start a)
+;; 					       (ifld-start b)))))))
+;;       (lambda (fld-list up?)
+;; 	(sort fld-list
+;; 	      (if up?
+;; 		  (lambda (a b) (< (ifld-start a)
+;; 				   (ifld-start b)))
+;; 		  (lambda (a b) (> (ifld-start a)
+;; 				   (ifld-start b)))))))
+;; )
+
+;; TODO: This is the version that I used to have before the big merge.
+;; Should look to see if this offers anything that the above does not.
+;; (define sort-ifield-list
+;;   (if (and (defined? 'cgh-qsort) (defined? 'cgh-qsort-int-cmp))
+;;       (lambda (fld-list)
+;;  	(cgh-qsort fld-list
+;;                    (lambda (a b)
+;;                      (cgh-qsort-int-cmp (-ifld-start-bit-for-sort a)
+;;                                         (-ifld-start-bit-for-sort b)))))
+;;       (lambda (fld-list)
+;;  	(sort fld-list
+;;               (lambda (a b)
+;;                 (< (-ifld-start-bit-for-sort a)
+;;                    (-ifld-start-bit-for-sort b))))))
+;;   )
+
 
 ; Return a boolean indicating if field F extends beyond the base insn.
 

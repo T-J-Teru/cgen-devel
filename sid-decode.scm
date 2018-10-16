@@ -591,23 +591,23 @@ static void
   ; of the instruction.
   ; ??? Make this a parameter later but only if necessary.
 
-  (let ((decode-bitsize (state-base-insn-bitsize)))
+  (let ((decode-word-offset 0)
+        (decode-word-bitsize (state-base-insn-bitsize)))
 
     ; Compute INITIAL-BITNUMS if not supplied.
-    ; 0 is passed for the start bit (it is independent of lsb0?)
     (if (null? initial-bitnums)
 	(set! initial-bitnums
 	      (if (= 0 (length insn-list))
 		  (list 0) ; dummy value
 		  (decode-get-best-bits insn-list nil
-					0 ; startbit
+					decode-word-offset ; startbit
 					8 ; max
-					decode-bitsize
+					decode-word-bitsize
 					lsb0?))))
 	
     ; All set.  gen-decoder does the hard part, we just print out the result. 
     (let ((decode-code (gen-decoder insn-list initial-bitnums
-				    decode-bitsize
+				    decode-word-bitsize
 				    "    " lsb0?
 				    (current-insn-lookup 'x-invalid #f)
 				    #t)))
